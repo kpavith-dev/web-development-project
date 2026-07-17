@@ -21,7 +21,8 @@ export const getVehicles = async (req, res) => {
 
 export const updateVehicle = async (req, res) => {
   try {
-    const vehicle = await Vehicle.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const vehicle = await Vehicle.findOneAndUpdate({ _id: req.params.id, user: req.user._id }, req.body, { new: true, runValidators: true });
+    if (!vehicle) return sendError(res, 'Vehicle not found', 404);
     return sendSuccess(res, vehicle, 'Vehicle updated');
   } catch (error) {
     return sendError(res, error.message, 500);
@@ -30,7 +31,8 @@ export const updateVehicle = async (req, res) => {
 
 export const deleteVehicle = async (req, res) => {
   try {
-    await Vehicle.findByIdAndDelete(req.params.id);
+    const vehicle = await Vehicle.findOneAndDelete({ _id: req.params.id, user: req.user._id });
+    if (!vehicle) return sendError(res, 'Vehicle not found', 404);
     return sendSuccess(res, null, 'Vehicle deleted');
   } catch (error) {
     return sendError(res, error.message, 500);

@@ -37,10 +37,7 @@ const RegisterPage = () => {
           <input type="password" required minLength="6" autoComplete="new-password" className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3" placeholder="Password (minimum 6 characters)" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
           <select className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
             <option value="student">Student</option>
-            <option value="lecturer">Lecturer</option>
             <option value="staff">Staff</option>
-            <option value="security">Security Officer</option>
-            <option value="admin">Administrator</option>
           </select>
           <button disabled={submitting} className="flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-600 px-4 py-3 font-semibold transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-60">
             <FaUserPlus />

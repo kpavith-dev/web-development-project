@@ -7,6 +7,7 @@ export const checkIn = async (req, res) => {
     const { reservationId } = req.body;
     const reservation = await Reservation.findOne({ reservationId });
     if (!reservation) return sendError(res, 'Reservation not found', 404);
+    if (!['pending', 'confirmed'].includes(reservation.status)) return sendError(res, 'Reservation is not eligible for check-in', 400);
 
     reservation.status = 'checked-in';
     await reservation.save();
@@ -22,6 +23,7 @@ export const checkOut = async (req, res) => {
     const { reservationId } = req.body;
     const reservation = await Reservation.findOne({ reservationId });
     if (!reservation) return sendError(res, 'Reservation not found', 404);
+    if (reservation.status !== 'checked-in') return sendError(res, 'Reservation has not been checked in', 400);
 
     reservation.status = 'checked-out';
     await reservation.save();

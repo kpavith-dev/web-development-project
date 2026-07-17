@@ -13,4 +13,7 @@ const reservationSchema = new mongoose.Schema({
   expiresAt: { type: Date }
 }, { timestamps: true });
 
+// Queries for a slot and a date are the hot path when checking availability.
+reservationSchema.index({ slot: 1, bookingDate: 1, status: 1, arrivalTime: 1, departureTime: 1 });
+
 export default mongoose.model('Reservation', reservationSchema);
