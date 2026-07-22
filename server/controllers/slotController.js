@@ -1,6 +1,7 @@
 import ParkingSlot from '../models/ParkingSlot.js';
 import Reservation from '../models/Reservation.js';
 import { sendSuccess, sendError } from '../utils/response.js';
+import { emitSlotUpdate } from '../socket.js';
 
 export const getSlots = async (req, res) => {
   try {
@@ -36,6 +37,7 @@ export const getSlotById = async (req, res) => {
 export const createSlot = async (req, res) => {
   try {
     const slot = await ParkingSlot.create(req.body);
+    emitSlotUpdate(slot);
     return sendSuccess(res, slot, 'Parking slot created', 201);
   } catch (error) {
     return sendError(res, error.message, 500);
@@ -45,6 +47,7 @@ export const createSlot = async (req, res) => {
 export const updateSlot = async (req, res) => {
   try {
     const slot = await ParkingSlot.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (slot) emitSlotUpdate(slot);
     return sendSuccess(res, slot, 'Parking slot updated');
   } catch (error) {
     return sendError(res, error.message, 500);

@@ -2,6 +2,7 @@ import Reservation from '../models/Reservation.js';
 import ParkingSlot from '../models/ParkingSlot.js';
 import QRCode from 'qrcode';
 import { sendSuccess, sendError } from '../utils/response.js';
+import { emitSlotUpdate } from '../socket.js';
 
 const ACTIVE_STATUSES = ['pending', 'confirmed', 'checked-in'];
 const dateBounds = (value) => {
@@ -18,6 +19,12 @@ const validTimeRange = (arrivalTime, departureTime) => (
   && /^([01]\d|2[0-3]):[0-5]\d$/.test(departureTime || '')
   && arrivalTime < departureTime
 );
+const arrivalDeadline = (bookingDate, arrivalTime, gracePeriodMinutes = 15) => {
+  const deadline = new Date(bookingDate);
+  const [hour, minute] = arrivalTime.split(':').map(Number);
+  deadline.setHours(hour, minute + gracePeriodMinutes, 0, 0);
+  return deadline;
+};
 
 export const createReservation = async (req, res) => {
   try {
@@ -61,7 +68,7 @@ export const createReservation = async (req, res) => {
       user: req.user._id,
       reservationId,
       qrCode,
-      expiresAt: new Date(Date.now() + 15 * 60 * 1000)
+      expiresAt: arrivalDeadline(bounds.date, arrivalTime)
     });
 
     return sendSuccess(res, reservation, 'Reservation created', 201);
@@ -108,4 +115,30 @@ export const deleteReservation = async (req, res) => {
   } catch (error) {
     return sendError(res, error.message, 500);
   }
+};
+
+export const checkInReservation = async (req, res) => {
+  try {
+    const reservation = await Reservation.findOne({ _id: req.params.id, status: { $in: ['pending', 'confirmed'] } }).populate('slot');
+    if (!reservation) return sendError(res, 'Active reservation not found', 404);
+    if (reservation.user.toString() !== req.user._id.toString() && !['admin', 'security'].includes(req.user.role)) return sendError(res, 'Forbidden', 403);
+    reservation.status = 'checked-in'; reservation.checkedInAt = new Date();
+    await reservation.save();
+    const slot = await ParkingSlot.findByIdAndUpdate(reservation.slot._id, { status: 'occupied' }, { new: true });
+    emitSlotUpdate(slot);
+    return sendSuccess(res, reservation, 'Checked in successfully');
+  } catch (error) { return sendError(res, error.message, 500); }
+};
+
+export const checkOutReservation = async (req, res) => {
+  try {
+    const reservation = await Reservation.findOne({ _id: req.params.id, status: 'checked-in' }).populate('slot');
+    if (!reservation) return sendError(res, 'Checked-in reservation not found', 404);
+    if (reservation.user.toString() !== req.user._id.toString() && !['admin', 'security'].includes(req.user.role)) return sendError(res, 'Forbidden', 403);
+    reservation.status = 'checked-out'; reservation.checkedOutAt = new Date();
+    await reservation.save();
+    const slot = await ParkingSlot.findByIdAndUpdate(reservation.slot._id, { status: 'available' }, { new: true });
+    emitSlotUpdate(slot);
+    return sendSuccess(res, reservation, 'Checked out successfully');
+  } catch (error) { return sendError(res, error.message, 500); }
 };

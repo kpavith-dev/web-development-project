@@ -5,7 +5,11 @@ import morgan from 'morgan';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
+import http from 'http';
+import { initializeSocket } from './socket.js';
+import { processReservationLifecycle } from './services/reservationLifecycle.js';
 
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
@@ -16,13 +20,16 @@ import securityRoutes from './routes/securityRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import vehicleRoutes from './routes/vehicleRoutes.js';
 import reportRoutes from './routes/reportRoutes.js';
+import feedbackRoutes from './routes/feedbackRoutes.js';
 
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+fs.mkdirSync(path.join(__dirname, 'uploads', 'vehicles'), { recursive: true });
 
 const app = express();
+const httpServer = http.createServer(app);
 const PORT = process.env.PORT || 5000;
 
 app.use(helmet());
@@ -44,6 +51,7 @@ app.use('/api/security', securityRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/vehicles', vehicleRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/feedback', feedbackRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err.stack);
@@ -54,7 +62,10 @@ mongoose.set('strictQuery', false);
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {
     console.log('MongoDB connected');
-    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+    initializeSocket(httpServer);
+    processReservationLifecycle().catch(console.error);
+    setInterval(() => processReservationLifecycle().catch(console.error), 60 * 1000);
+    httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
   })
   .catch((error) => {
     console.error('MongoDB connection failed:', error);

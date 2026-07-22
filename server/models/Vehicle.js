@@ -5,6 +5,7 @@ const vehicleSchema = new mongoose.Schema({
   vehicleNumber: { type: String, required: true },
   vehicleType: { type: String, enum: ['car', 'motorcycle', 'bicycle', 'ev'], default: 'car' },
   vehicleBrand: { type: String },
+  imageUrl: { type: String },
   isPrimary: { type: Boolean, default: true }
 }, { timestamps: true });
 

@@ -3,7 +3,7 @@ import { sendSuccess, sendError } from '../utils/response.js';
 
 export const createVehicle = async (req, res) => {
   try {
-    const vehicle = await Vehicle.create({ ...req.body, user: req.user._id });
+    const vehicle = await Vehicle.create({ ...req.body, imageUrl: req.file ? `/uploads/vehicles/${req.file.filename}` : undefined, user: req.user._id });
     return sendSuccess(res, vehicle, 'Vehicle created', 201);
   } catch (error) {
     return sendError(res, error.message, 500);
@@ -21,7 +21,9 @@ export const getVehicles = async (req, res) => {
 
 export const updateVehicle = async (req, res) => {
   try {
-    const vehicle = await Vehicle.findOneAndUpdate({ _id: req.params.id, user: req.user._id }, req.body, { new: true, runValidators: true });
+    const update = { ...req.body };
+    if (req.file) update.imageUrl = `/uploads/vehicles/${req.file.filename}`;
+    const vehicle = await Vehicle.findOneAndUpdate({ _id: req.params.id, user: req.user._id }, update, { new: true, runValidators: true });
     if (!vehicle) return sendError(res, 'Vehicle not found', 404);
     return sendSuccess(res, vehicle, 'Vehicle updated');
   } catch (error) {
