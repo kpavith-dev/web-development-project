@@ -16,7 +16,7 @@ import { useAuth } from './context/AuthContext';
 
 const App = () => {
   const { user } = useAuth();
-  const protectedPage = (page) => (user ? <MainLayout>{page}</MainLayout> : <Navigate to="/login" replace />);
+  const protectedPage = (page, roles) => (user && (!roles || roles.includes(user.role)) ? <MainLayout>{page}</MainLayout> : <Navigate to={user ? '/dashboard' : '/login'} replace />);
 
   return (
     <>
@@ -26,10 +26,10 @@ const App = () => {
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={protectedPage(<DashboardPage />)} />
         <Route path="/reservations" element={protectedPage(<ReservationsPage />)} />
-        <Route path="/areas" element={protectedPage(<AreasPage />)} />
-        <Route path="/slots" element={protectedPage(<SlotsPage />)} />
-        <Route path="/security" element={protectedPage(<SecurityPage />)} />
-        <Route path="/reports" element={protectedPage(<ReportsPage />)} />
+        <Route path="/areas" element={protectedPage(<AreasPage />, ['admin'])} />
+        <Route path="/slots" element={protectedPage(<SlotsPage />, ['admin'])} />
+        <Route path="/security" element={protectedPage(<SecurityPage />, ['security', 'admin'])} />
+        <Route path="/reports" element={protectedPage(<ReportsPage />, ['admin'])} />
         <Route path="/profile" element={protectedPage(<ProfilePage />)} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

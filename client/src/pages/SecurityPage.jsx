@@ -1,38 +1,10 @@
-import { FaQrcode, FaShieldAlt, FaCheckCircle } from 'react-icons/fa';
+import { useState } from 'react';
+import { FaQrcode, FaSignInAlt, FaSignOutAlt } from 'react-icons/fa';
+import { toast } from 'react-toastify';
+import api from '../services/api';
 
-const SecurityPage = () => {
-  return (
-    <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
-        <h2 className="text-xl font-semibold">QR Verification</h2>
-        <p className="mt-2 text-sm text-slate-400">Scan reservation QR codes and verify entry or exit.</p>
-        <div className="mt-6 rounded-2xl border border-dashed border-slate-700 bg-slate-950/60 p-10 text-center">
-          <FaQrcode className="mx-auto text-6xl text-cyan-400" />
-          <p className="mt-4 text-slate-400">Camera scanner ready for deployment.</p>
-        </div>
-      </div>
-      <div className="space-y-6">
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
-          <h3 className="text-lg font-semibold">Today's Access</h3>
-          <div className="mt-4 space-y-3">
-            {['R1001', 'R1003'].map((item) => (
-              <div key={item} className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3">
-                <span>{item}</span>
-                <FaCheckCircle className="text-emerald-400" />
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
-          <h3 className="text-lg font-semibold">Security Actions</h3>
-          <div className="mt-4 flex gap-3">
-            <button className="rounded-xl bg-emerald-600 px-4 py-2">Approve Entry</button>
-            <button className="rounded-xl bg-amber-600 px-4 py-2">Approve Exit</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default SecurityPage;
+export default function SecurityPage() {
+  const [reservationId, setReservationId] = useState(''); const [busy, setBusy] = useState(false); const [result, setResult] = useState(null);
+  const submit = async (action) => { if (!reservationId.trim()) return toast.info('Enter or scan a reservation reference.'); setBusy(true); try { const { data } = await api.post(`/security/${action}`, { reservationId: reservationId.trim() }); setResult(data.data); toast.success(data.message || `Check-${action === 'check-in' ? 'in' : 'out'} approved.`); } catch (error) { setResult(null); toast.error(error.response?.data?.message || 'Verification failed.'); } finally { setBusy(false); } };
+  return <div className="mx-auto grid max-w-4xl gap-6 lg:grid-cols-[1.2fr_.8fr]"><section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6"><div className="flex items-center gap-3"><span className="rounded-xl bg-cyan-500/15 p-3 text-cyan-300"><FaQrcode /></span><div><h1 className="text-xl font-semibold">Entry & exit verification</h1><p className="text-sm text-slate-400">Scan a QR code or enter the reservation reference.</p></div></div><label className="mt-8 block text-sm text-slate-300">Reservation ID</label><input autoFocus value={reservationId} onChange={(e) => setReservationId(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit('check-in')} placeholder="e.g. RES-1720000000000" className="input mt-2" /><div className="mt-4 grid gap-3 sm:grid-cols-2"><button disabled={busy} onClick={() => submit('check-in')} className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 font-semibold hover:bg-emerald-500 disabled:opacity-60"><FaSignInAlt /> Approve entry</button><button disabled={busy} onClick={() => submit('check-out')} className="flex items-center justify-center gap-2 rounded-xl bg-amber-600 px-4 py-3 font-semibold hover:bg-amber-500 disabled:opacity-60"><FaSignOutAlt /> Approve exit</button></div></section><aside className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6"><h2 className="font-semibold">Verification result</h2>{result ? <div className="mt-5 space-y-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm"><p><span className="text-slate-400">Reference</span><br />{result.reservationId}</p><p><span className="text-slate-400">Status</span><br /><span className="capitalize text-emerald-300">{result.status}</span></p></div> : <p className="mt-5 text-sm text-slate-400">The latest verified reservation will appear here.</p>}</aside></div>;
+}

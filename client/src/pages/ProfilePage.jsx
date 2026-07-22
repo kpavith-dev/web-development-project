@@ -1,56 +1,7 @@
 import { useEffect, useState } from 'react';
+import { FaCar, FaPlus, FaSave, FaTrash } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-
-const ProfilePage = () => {
-  const { user: authenticatedUser } = useAuth();
-  const [user, setUser] = useState(authenticatedUser);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const { data } = await api.get('/users/profile');
-        setUser(data.data);
-      } catch (error) {
-        toast.error(error.response?.data?.message || 'Unable to load your profile.');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchProfile();
-  }, []);
-
-  if (loading) return <p className="text-slate-400">Loading profile...</p>;
-
-  const vehicle = [user?.vehicleBrand, user?.vehicleType, user?.vehicleNumber].filter(Boolean).join(' • ') || 'Not provided';
-  const fields = [
-    ['Name', user?.name],
-    ['Registration Number', user?.registrationNumber],
-    ['Vehicle', vehicle],
-    ['Faculty', user?.faculty],
-    ['Department', user?.department],
-    ['Phone Number', user?.phoneNumber]
-  ];
-
-  return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
-      <h2 className="text-xl font-semibold">User Profile</h2>
-      <div className="mt-6 grid gap-6 md:grid-cols-2">
-        {[fields.slice(0, 3), fields.slice(3)].map((column, index) => (
-          <div key={index} className="space-y-3">
-            {column.map(([label, value]) => (
-              <div key={label} className="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
-                <p className="text-sm text-slate-400">{label}</p>
-                <p className="font-semibold">{value || 'Not provided'}</p>
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-export default ProfilePage;
+const blankVehicle = { vehicleNumber: '', vehicleType: 'car', vehicleBrand: '' };
+export default function ProfilePage() { const { user: sessionUser } = useAuth(); const [user, setUser] = useState(sessionUser || {}); const [vehicles, setVehicles] = useState([]); const [vehicle, setVehicle] = useState(blankVehicle); const [saving, setSaving] = useState(false); const load = async () => { try { const [profile, list] = await Promise.all([api.get('/users/profile'), api.get('/vehicles')]); setUser(profile.data.data || {}); setVehicles(list.data.data || []); } catch { toast.error('Unable to load your profile.'); } }; useEffect(() => { load(); }, []); const saveProfile = async (e) => { e.preventDefault(); setSaving(true); try { await api.put('/users/profile', user); toast.success('Profile updated.'); } catch (error) { toast.error(error.response?.data?.message || 'Could not update profile.'); } finally { setSaving(false); } }; const addVehicle = async (e) => { e.preventDefault(); try { await api.post('/vehicles', vehicle); setVehicle(blankVehicle); toast.success('Vehicle added.'); load(); } catch (error) { toast.error(error.response?.data?.message || 'Could not add vehicle.'); } }; const removeVehicle = async (id) => { try { await api.delete(`/vehicles/${id}`); setVehicles(vehicles.filter((item) => item._id !== id)); toast.success('Vehicle removed.'); } catch { toast.error('Could not remove vehicle.'); } }; return <div className="grid gap-6 xl:grid-cols-[1fr_.9fr]"><form onSubmit={saveProfile} className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6"><h1 className="text-xl font-semibold">My profile</h1><p className="mt-1 text-sm text-slate-400">Keep your contact details current.</p><div className="mt-6 grid gap-4 sm:grid-cols-2">{[['name','Full name'],['email','Email'],['phoneNumber','Phone number'],['registrationNumber','Registration number'],['faculty','Faculty'],['department','Department']].map(([key,label]) => <label key={key} className="text-sm text-slate-300">{label}<input value={user[key] || ''} onChange={(e) => setUser({ ...user, [key]: e.target.value })} disabled={key === 'email'} className="input mt-2 disabled:opacity-60" /></label>)}</div><button disabled={saving} className="mt-6 flex items-center gap-2 rounded-xl bg-cyan-600 px-5 py-3 font-semibold hover:bg-cyan-500 disabled:opacity-60"><FaSave /> {saving ? 'Saving…' : 'Save profile'}</button></form><section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6"><div className="flex items-center gap-3"><span className="rounded-xl bg-cyan-500/15 p-3 text-cyan-300"><FaCar /></span><div><h2 className="text-xl font-semibold">My vehicles</h2><p className="text-sm text-slate-400">Add a vehicle before your next booking.</p></div></div><form onSubmit={addVehicle} className="mt-6 grid gap-3"><input required placeholder="Vehicle number" value={vehicle.vehicleNumber} onChange={(e) => setVehicle({ ...vehicle, vehicleNumber: e.target.value })} className="input" /><div className="grid grid-cols-2 gap-3"><input placeholder="Brand / model" value={vehicle.vehicleBrand} onChange={(e) => setVehicle({ ...vehicle, vehicleBrand: e.target.value })} className="input" /><select value={vehicle.vehicleType} onChange={(e) => setVehicle({ ...vehicle, vehicleType: e.target.value })} className="input"><option value="car">Car</option><option value="motorcycle">Motorcycle</option><option value="bicycle">Bicycle</option><option value="ev">Electric vehicle</option></select></div><button className="flex items-center justify-center gap-2 rounded-xl border border-cyan-500/50 px-4 py-3 text-cyan-300 hover:bg-cyan-500/10"><FaPlus /> Add vehicle</button></form><div className="mt-5 space-y-2">{vehicles.map((item) => <div key={item._id} className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3"><div><p className="font-medium">{item.vehicleNumber}</p><p className="text-xs text-slate-400">{item.vehicleBrand || 'Unspecified'} · {item.vehicleType}</p></div><button onClick={() => removeVehicle(item._id)} className="p-2 text-rose-300 hover:text-rose-200"><FaTrash /></button></div>)}{!vehicles.length && <p className="text-sm text-slate-400">No vehicles added yet.</p>}</div></section></div>; }

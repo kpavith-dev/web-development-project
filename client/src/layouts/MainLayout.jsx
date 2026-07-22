@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom';
-import { FaHome, FaCar, FaMapMarkedAlt, FaParking, FaShieldAlt, FaChartBar, FaUser } from 'react-icons/fa';
+import { useState } from 'react';
+import { FaHome, FaCar, FaMapMarkedAlt, FaParking, FaShieldAlt, FaChartBar, FaUser, FaBars, FaTimes } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
 
 const navItems = [
@@ -9,24 +10,32 @@ const navItems = [
   { label: 'Slots', path: '/slots', icon: FaParking },
   { label: 'Security', path: '/security', icon: FaShieldAlt },
   { label: 'Reports', path: '/reports', icon: FaChartBar },
-  { label: 'Profile', path: '/profile', icon: FaUser }
+  { label: 'Profile & Vehicles', path: '/profile', icon: FaUser }
 ];
 
 const MainLayout = ({ children }) => {
   const { user, logout } = useAuth();
+  const [open, setOpen] = useState(false);
+  const visibleItems = navItems.filter((item) => {
+    if (item.path === '/security') return ['security', 'admin'].includes(user?.role);
+    if (['/areas', '/slots', '/reports'].includes(item.path)) return user?.role === 'admin';
+    return true;
+  });
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
-      <aside className="fixed inset-y-0 left-0 w-72 border-r border-slate-800 bg-slate-900/80 p-6 backdrop-blur">
+      {open && <button aria-label="Close menu" onClick={() => setOpen(false)} className="fixed inset-0 z-30 bg-slate-950/70 lg:hidden" />}
+      <aside className={`fixed inset-y-0 left-0 z-40 w-72 border-r border-slate-800 bg-slate-900/95 p-6 backdrop-blur transition-transform lg:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="mb-8">
           <h1 className="text-2xl font-semibold">Smart Campus</h1>
           <p className="text-sm text-slate-400">Parking Reservation</p>
         </div>
         <nav className="space-y-2">
-          {navItems.map(({ label, path, icon: Icon }) => (
+          {visibleItems.map(({ label, path, icon: Icon }) => (
             <NavLink
               key={path}
               to={path}
+              onClick={() => setOpen(false)}
               className={({ isActive }) =>
                 `flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition ${isActive ? 'bg-cyan-600 text-white' : 'text-slate-300 hover:bg-slate-800'}`
               }
@@ -37,11 +46,14 @@ const MainLayout = ({ children }) => {
           ))}
         </nav>
       </aside>
-      <div className="ml-72 p-6">
+      <div className="p-4 lg:ml-72 lg:p-6">
         <header className="mb-6 flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-900/70 px-6 py-4">
-          <div>
+          <div className="flex items-center gap-3">
+            <button onClick={() => setOpen(true)} className="rounded-lg border border-slate-700 p-2 lg:hidden"><FaBars /></button>
+            <div>
             <h2 className="text-xl font-semibold">Campus Parking Control Center</h2>
             <p className="text-sm text-slate-400">Manage reservations, slots, and analytics in one place.</p>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <div className="rounded-full bg-cyan-600/20 px-4 py-2 text-sm capitalize text-cyan-300">{user?.role || 'User'}</div>

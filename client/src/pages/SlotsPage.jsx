@@ -1,47 +1,7 @@
 import { useEffect, useState } from 'react';
+import { FaEdit, FaParking, FaPlus, FaTrash } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import api from '../services/api';
-
-const SlotsPage = () => {
-  const [slots, setSlots] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchSlots = async () => {
-      try {
-        const { data } = await api.get('/slots');
-        setSlots(data.data || []);
-      } catch (error) {
-        toast.error(error.response?.data?.message || 'Unable to load parking slots.');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchSlots();
-  }, []);
-
-  if (loading) return <p className="text-slate-400">Loading parking slots...</p>;
-
-  return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-      {slots.map((slot) => {
-        const status = slot.status || 'available';
-        const isAvailable = status === 'available';
-        return (
-          <div key={slot._id} className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Slot {slot.slotNumber}</h3>
-              <span className={`rounded-full px-3 py-1 text-sm ${isAvailable ? 'bg-emerald-600/20 text-emerald-400' : 'bg-amber-600/20 text-amber-400'}`}>
-                {status.charAt(0).toUpperCase() + status.slice(1)}
-              </span>
-            </div>
-            <p className="mt-3 text-sm text-slate-400">{slot.parkingArea?.name || 'Unassigned area'} &bull; {slot.vehicleTypeAllowed || 'car'}</p>
-          </div>
-        );
-      })}
-      {!slots.length && <p className="text-slate-400">No parking slots found.</p>}
-    </div>
-  );
-};
-
-export default SlotsPage;
+const empty = { slotNumber: '', parkingArea: '', vehicleTypeAllowed: 'car', status: 'available' };
+const colors = { available: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300', occupied: 'border-rose-500/40 bg-rose-500/10 text-rose-300', reserved: 'border-amber-500/40 bg-amber-500/10 text-amber-300', maintenance: 'border-slate-700 bg-slate-800 text-slate-300' };
+export default function SlotsPage() { const [slots, setSlots] = useState([]); const [areas, setAreas] = useState([]); const [form, setForm] = useState(empty); const [editing, setEditing] = useState(null); const load = async () => { try { const [s, a] = await Promise.all([api.get('/slots'), api.get('/areas')]); setSlots(s.data.data || []); setAreas(a.data.data || []); } catch { toast.error('Unable to load slots.'); } }; useEffect(() => { load(); }, []); const save = async (e) => { e.preventDefault(); try { if (editing) await api.put(`/slots/${editing}`, form); else await api.post('/slots', form); toast.success(`Slot ${editing ? 'updated' : 'created'}.`); setForm(empty); setEditing(null); load(); } catch (error) { toast.error(error.response?.data?.message || 'Could not save slot.'); } }; const remove = async (id) => { if (!window.confirm('Delete this slot?')) return; try { await api.delete(`/slots/${id}`); toast.success('Slot deleted.'); load(); } catch (e) { toast.error(e.response?.data?.message || 'Could not delete slot.'); } }; return <div className="space-y-6"><form onSubmit={save} className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5"><div className="mb-4 flex justify-between"><h1 className="text-xl font-semibold">Parking slots</h1>{editing && <button type="button" onClick={() => { setEditing(null); setForm(empty); }} className="text-sm text-slate-400">Cancel edit</button>}</div><div className="grid gap-3 md:grid-cols-4"><input required placeholder="Slot number" value={form.slotNumber} onChange={(e) => setForm({ ...form, slotNumber: e.target.value })} className="input" /><select required value={form.parkingArea} onChange={(e) => setForm({ ...form, parkingArea: e.target.value })} className="input"><option value="">Select area</option>{areas.map((a) => <option key={a._id} value={a._id}>{a.name}</option>)}</select><select value={form.vehicleTypeAllowed} onChange={(e) => setForm({ ...form, vehicleTypeAllowed: e.target.value })} className="input">{['car','motorcycle','bicycle','ev'].map((x) => <option key={x} value={x}>{x}</option>)}</select><select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="input">{Object.keys(colors).map((x) => <option key={x} value={x}>{x}</option>)}</select><button className="flex items-center justify-center gap-2 rounded-xl bg-cyan-600 px-4 py-3 font-semibold md:col-span-4"><FaPlus /> {editing ? 'Save slot' : 'Add slot'}</button></div></form><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{slots.map((slot) => <article key={slot._id} className={`rounded-2xl border p-4 ${colors[slot.status] || colors.available}`}><div className="flex justify-between"><div><FaParking /><h2 className="mt-2 text-lg font-bold">{slot.slotNumber}</h2><p className="text-xs opacity-80">{slot.parkingArea?.name || 'Unassigned'} · {slot.vehicleTypeAllowed}</p></div><div className="flex h-fit"><button onClick={() => { setEditing(slot._id); setForm({ slotNumber: slot.slotNumber, parkingArea: slot.parkingArea?._id || slot.parkingArea, vehicleTypeAllowed: slot.vehicleTypeAllowed, status: slot.status }); }} className="p-2"><FaEdit /></button><button onClick={() => remove(slot._id)} className="p-2"><FaTrash /></button></div></div><p className="mt-4 text-xs font-medium uppercase tracking-wider">{slot.status}</p></article>)}</div></div>; }

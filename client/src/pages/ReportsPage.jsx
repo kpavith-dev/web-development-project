@@ -1,41 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { FaChartBar } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import api from '../services/api';
-
-const ReportsPage = () => {
-  const [reports, setReports] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchReports = async () => {
-      try {
-        const { data } = await api.get('/reports');
-        setReports(data.data || []);
-      } catch (error) {
-        toast.error(error.response?.data?.message || 'Unable to load reports.');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchReports();
-  }, []);
-
-  if (loading) return <p className="text-slate-400">Loading reports...</p>;
-
-  return (
-    <div className="grid gap-6 lg:grid-cols-2">
-      {reports.map((report) => (
-        <div key={report._id} className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
-          <h2 className="text-xl font-semibold">{`${report.type.charAt(0).toUpperCase() + report.type.slice(1)} Report`}</h2>
-          <p className="mt-2 text-sm text-slate-400">{report.data?.summary || 'No report summary available.'}</p>
-          <div className="mt-4 rounded-xl bg-gradient-to-br from-cyan-600/20 to-slate-900 p-4 text-sm text-slate-300">
-            Generated {report.generatedAt ? new Date(report.generatedAt).toLocaleString() : 'recently'}
-          </div>
-        </div>
-      ))}
-      {!reports.length && <p className="text-slate-400">No reports found.</p>}
-    </div>
-  );
-};
-
-export default ReportsPage;
+export default function ReportsPage() { const [report, setReport] = useState(null); const [busy, setBusy] = useState(false); const generate = async (type) => { setBusy(true); try { const { data } = await api.post('/reports', { type }); setReport(data.data); toast.success(`${type[0].toUpperCase()}${type.slice(1)} report generated.`); } catch (e) { toast.error(e.response?.data?.message || 'Unable to generate report.'); } finally { setBusy(false); } }; return <div className="mx-auto max-w-4xl"><section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6"><div className="flex items-center gap-3"><span className="rounded-xl bg-violet-500/15 p-3 text-violet-300"><FaChartBar /></span><div><h1 className="text-xl font-semibold">Analytics reports</h1><p className="text-sm text-slate-400">Generate a snapshot of parking activity.</p></div></div><div className="mt-6 grid gap-3 sm:grid-cols-3">{['daily','weekly','monthly'].map((type) => <button disabled={busy} key={type} onClick={() => generate(type)} className="rounded-xl border border-slate-700 px-4 py-4 capitalize hover:border-cyan-500 hover:bg-slate-800 disabled:opacity-60">Generate {type}</button>)}</div></section>{report && <section className="mt-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-6"><h2 className="text-lg font-semibold capitalize">{report.type || 'Parking'} report</h2><pre className="mt-4 overflow-auto rounded-xl bg-slate-950 p-4 text-sm text-slate-300">{JSON.stringify(report.data || report, null, 2)}</pre></section>}</div>; }

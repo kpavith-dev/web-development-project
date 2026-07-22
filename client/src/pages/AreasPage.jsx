@@ -1,47 +1,6 @@
 import { useEffect, useState } from 'react';
+import { FaEdit, FaPlus, FaTrash } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import api from '../services/api';
-
-const AreasPage = () => {
-  const [areas, setAreas] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchAreas = async () => {
-      try {
-        const { data } = await api.get('/areas');
-        setAreas(data.data || []);
-      } catch (error) {
-        toast.error(error.response?.data?.message || 'Unable to load parking areas.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchAreas();
-  }, []);
-
-  if (loading) return <p className="text-slate-400">Loading parking areas...</p>;
-
-  return (
-    <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-      {areas.map((area) => (
-        <div key={area._id} className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
-          <h3 className="text-lg font-semibold">{area.name}</h3>
-          <p className="mt-2 text-sm text-slate-400">{area.description || 'No description available.'}</p>
-          <div className="mt-4 flex items-center justify-between text-sm">
-            <span>Total Slots</span>
-            <span className="font-semibold">{area.totalSlots}</span>
-          </div>
-          <div className="mt-2 flex items-center justify-between text-sm">
-            <span>Available</span>
-            <span className="font-semibold text-emerald-400">{area.availableSlots}</span>
-          </div>
-        </div>
-      ))}
-      {!areas.length && <p className="text-slate-400">No parking areas found.</p>}
-    </div>
-  );
-};
-
-export default AreasPage;
+const empty = { name: '', description: '', totalSlots: 0 };
+export default function AreasPage() { const [areas, setAreas] = useState([]); const [form, setForm] = useState(empty); const [editing, setEditing] = useState(null); const load = async () => { try { const { data } = await api.get('/areas'); setAreas(data.data || []); } catch { toast.error('Unable to load parking areas.'); } }; useEffect(() => { load(); }, []); const save = async (e) => { e.preventDefault(); try { if (editing) await api.put(`/areas/${editing}`, { ...form, totalSlots: Number(form.totalSlots) }); else await api.post('/areas', { ...form, totalSlots: Number(form.totalSlots) }); toast.success(`Area ${editing ? 'updated' : 'created'}.`); setForm(empty); setEditing(null); load(); } catch (error) { toast.error(error.response?.data?.message || 'Could not save area.'); } }; const remove = async (id) => { if (!window.confirm('Delete this parking area?')) return; try { await api.delete(`/areas/${id}`); toast.success('Area deleted.'); load(); } catch (e) { toast.error(e.response?.data?.message || 'Could not delete area.'); } }; return <div className="space-y-6"><form onSubmit={save} className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5"><div className="mb-4 flex items-center justify-between"><h1 className="text-xl font-semibold">Parking areas</h1>{editing && <button type="button" onClick={() => { setEditing(null); setForm(empty); }} className="text-sm text-slate-400">Cancel edit</button>}</div><div className="grid gap-3 md:grid-cols-[1fr_2fr_160px_auto]"><input required placeholder="Area name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input" /><input placeholder="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="input" /><input required min="1" type="number" placeholder="Total slots" value={form.totalSlots} onChange={(e) => setForm({ ...form, totalSlots: e.target.value })} className="input" /><button className="flex items-center justify-center gap-2 rounded-xl bg-cyan-600 px-4 py-3 font-semibold"><FaPlus /> {editing ? 'Save' : 'Add area'}</button></div></form><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{areas.map((area) => <article key={area._id} className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5"><div className="flex justify-between gap-3"><div><h2 className="font-semibold">{area.name}</h2><p className="mt-1 text-sm text-slate-400">{area.description || 'No description'}</p></div><div className="flex gap-1"><button onClick={() => { setEditing(area._id); setForm({ name: area.name, description: area.description || '', totalSlots: area.totalSlots }); }} className="p-2 text-cyan-300"><FaEdit /></button><button onClick={() => remove(area._id)} className="p-2 text-rose-300"><FaTrash /></button></div></div><div className="mt-5 flex justify-between text-sm"><span className="text-slate-400">Available / total</span><strong className="text-emerald-300">{area.availableSlots ?? 0} / {area.totalSlots}</strong></div></article>)}{!areas.length && <p className="text-slate-400">No parking areas yet.</p>}</div></div>; }
