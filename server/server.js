@@ -62,7 +62,9 @@ mongoose.set('strictQuery', false);
 
 const connectDatabase = async () => {
   try {
-    await mongoose.connect(process.env.MONGO_URI);
+await mongoose.connect(process.env.MONGO_URI, {
+  serverSelectionTimeoutMS: 10000,
+});
     console.log('MongoDB connected');
   } catch (error) {
     console.warn('MongoDB connection failed, continuing without database for local preview:', error.message);
@@ -71,14 +73,21 @@ const connectDatabase = async () => {
   return true;
 };
 
-connectDatabase()
-  .then(() => {
-    initializeSocket(httpServer);
+connectDatabase().then((connected) => {
+  initializeSocket(httpServer);
+
+  if (connected) {
     processReservationLifecycle().catch(console.error);
     setInterval(() => processReservationLifecycle().catch(console.error), 60 * 1000);
-    httpServer.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));
-  })
-  .catch((error) => {
-    console.error('Server startup failed:', error);
-    process.exit(1);
-  });
+  } else {
+    console.warn("Database unavailable. Background reservation lifecycle disabled.");
+  }
+
+  httpServer.listen(PORT, "0.0.0.0", () =>
+    console.log(`Server running on port ${PORT}`)
+  );
+})
+.catch((error) => {
+  console.error('Server startup failed:', error);
+  process.exit(1);
+});
