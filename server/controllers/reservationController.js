@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Reservation from '../models/Reservation.js';
 import ParkingSlot from '../models/ParkingSlot.js';
 import QRCode from 'qrcode';
@@ -28,6 +29,10 @@ const arrivalDeadline = (bookingDate, arrivalTime, gracePeriodMinutes = 15) => {
 
 export const createReservation = async (req, res) => {
   try {
+    if (!mongoose.connection.readyState || mongoose.connection.readyState !== 1) {
+      return sendError(res, 'Database is unavailable in preview mode. Please connect MongoDB to enable reservations.', 503);
+    }
+
     const { slot: slotId, bookingDate, arrivalTime, departureTime } = req.body;
     const bounds = dateBounds(bookingDate);
     if (!slotId || !bounds || !validTimeRange(arrivalTime, departureTime)) {
@@ -79,6 +84,10 @@ export const createReservation = async (req, res) => {
 
 export const getReservations = async (req, res) => {
   try {
+    if (!mongoose.connection.readyState || mongoose.connection.readyState !== 1) {
+      return sendSuccess(res, [], 'Reservations fetched');
+    }
+
     const filter = ['admin', 'security'].includes(req.user.role) ? {} : { user: req.user._id };
     const reservations = await Reservation.find(filter).sort({ bookingDate: -1, arrivalTime: -1 }).populate('user', 'name email role').populate('slot');
     return sendSuccess(res, reservations, 'Reservations fetched');

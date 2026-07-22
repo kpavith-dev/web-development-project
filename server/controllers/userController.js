@@ -1,8 +1,12 @@
+import mongoose from 'mongoose';
 import User from '../models/User.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 
 export const getProfile = async (req, res) => {
   try {
+    if (!mongoose.connection.readyState || mongoose.connection.readyState !== 1) {
+      return sendSuccess(res, req.user || {}, 'Profile fetched');
+    }
     return sendSuccess(res, req.user, 'Profile fetched');
   } catch (error) {
     return sendError(res, error.message, 500);

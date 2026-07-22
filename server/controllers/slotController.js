@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import ParkingSlot from '../models/ParkingSlot.js';
 import Reservation from '../models/Reservation.js';
 import { sendSuccess, sendError } from '../utils/response.js';
@@ -5,6 +6,10 @@ import { emitSlotUpdate } from '../socket.js';
 
 export const getSlots = async (req, res) => {
   try {
+    if (!mongoose.connection.readyState || mongoose.connection.readyState !== 1) {
+      return sendSuccess(res, [], 'Parking slots fetched');
+    }
+
     const { date, arrivalTime, departureTime } = req.query;
     let unavailableIds = [];
     if (date || arrivalTime || departureTime) {

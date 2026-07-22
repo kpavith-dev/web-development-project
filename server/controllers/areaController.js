@@ -1,8 +1,12 @@
+import mongoose from 'mongoose';
 import ParkingArea from '../models/ParkingArea.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 
 export const getAreas = async (req, res) => {
   try {
+    if (!mongoose.connection.readyState || mongoose.connection.readyState !== 1) {
+      return sendSuccess(res, [], 'Parking areas fetched');
+    }
     const areas = await ParkingArea.find();
     return sendSuccess(res, areas, 'Parking areas fetched');
   } catch (error) {
