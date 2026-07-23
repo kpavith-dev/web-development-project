@@ -10,6 +10,9 @@ import { fileURLToPath } from 'url';
 import http from 'http';
 import { initializeSocket } from './socket.js';
 import { processReservationLifecycle } from './services/reservationLifecycle.js';
+import { apiLimiter } from './middleware/rateLimitMiddleware.js';
+import { requestLogger, logger } from './utils/logger.js';
+import validateEnvironment from './utils/validateEnv.js';
 
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
@@ -24,6 +27,14 @@ import feedbackRoutes from './routes/feedbackRoutes.js';
 
 dotenv.config();
 
+// Validate environment variables before starting
+try {
+  validateEnvironment();
+} catch (error) {
+  console.error('Environment validation failed:', error.message);
+  process.exit(1);
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 fs.mkdirSync(path.join(__dirname, 'uploads', 'vehicles'), { recursive: true });
@@ -36,11 +47,15 @@ app.use(helmet());
 app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json());
+app.use(requestLogger);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.get('/api/health', (req, res) => {
   res.json({ success: true, message: 'Smart Campus Parking API is running.' });
 });
+
+// Apply rate limiting to all API routes
+app.use('/api/', apiLimiter);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -54,7 +69,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/feedback', feedbackRoutes);
 
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  logger.error('Unhandled error', err, { path: req.path, method: req.method });
   res.status(err.status || 500).json({ success: false, message: err.message || 'Server error' });
 });
 
