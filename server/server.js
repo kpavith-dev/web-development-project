@@ -73,21 +73,14 @@ await mongoose.connect(process.env.MONGO_URI, {
   return true;
 };
 
-connectDatabase().then((connected) => {
-  initializeSocket(httpServer);
-
-  if (connected) {
+connectDatabase()
+  .then(() => {
+    initializeSocket(httpServer);
     processReservationLifecycle().catch(console.error);
     setInterval(() => processReservationLifecycle().catch(console.error), 60 * 1000);
-  } else {
-    console.warn("Database unavailable. Background reservation lifecycle disabled.");
-  }
-
-  httpServer.listen(PORT, "0.0.0.0", () =>
-    console.log(`Server running on port ${PORT}`)
-  );
-})
-.catch((error) => {
-  console.error('Server startup failed:', error);
-  process.exit(1);
-});
+    httpServer.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));
+  })
+  .catch((error) => {
+    console.error('Server startup failed:', error);
+    process.exit(1);
+  });
