@@ -12,6 +12,7 @@ import SlotsPage from './pages/SlotsPage';
 import SecurityPage from './pages/SecurityPage';
 import ReportsPage from './pages/ReportsPage';
 import ProfilePage from './pages/ProfilePage';
+import UsersPage from './pages/UsersPage';
 import { useAuth } from './context/AuthContext';
 
 const App = () => {
@@ -31,6 +32,7 @@ const App = () => {
         <Route path="/security" element={protectedPage(<SecurityPage />, ['security', 'admin'])} />
         <Route path="/reports" element={protectedPage(<ReportsPage />, ['admin'])} />
         <Route path="/profile" element={protectedPage(<ProfilePage />)} />
+        <Route path="/users" element={protectedPage(<UsersPage />, ['admin'])} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <ToastContainer position="top-right" theme="dark" />

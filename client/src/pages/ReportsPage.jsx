@@ -74,19 +74,18 @@ const ReportsPage = () => {
           <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/70 p-4">
             <div className="mb-3 flex items-center justify-between">
               <p className="text-sm font-semibold text-slate-200">Report snapshot</p>
-              <span className="text-sm text-slate-400">Simple visual summary</span>
+              <span className="text-sm text-slate-400">Live database totals</span>
             </div>
             <div className="space-y-3">
-              {['Reserved', 'Occupied', 'Available'].map((label, index) => {
-                const width = [60, 35, 85][index];
+              {Object.entries(report.data?.slots || {}).map(([label, count]) => {
                 return (
                   <div key={label}>
                     <div className="mb-1 flex items-center justify-between text-sm text-slate-400">
-                      <span>{label}</span>
-                      <span>{width}%</span>
+                      <span className="capitalize">{label}</span>
+                      <span>{count}</span>
                     </div>
                     <div className="h-2 overflow-hidden rounded-full bg-slate-800">
-                      <div className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-violet-500" style={{ width: `${width}%` }} />
+                      <div className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-violet-500" style={{ width: `${Math.min(100, Number(count) * 10)}%` }} />
                     </div>
                   </div>
                 );

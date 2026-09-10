@@ -97,14 +97,8 @@ const ProfilePage = () => {
           <form onSubmit={saveProfile} className="mt-6 space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
               <input required placeholder="Full name" value={profile.name || ''} onChange={(event) => setProfile({ ...profile, name: event.target.value })} className="input" />
-              <input required type="email" placeholder="Email" value={profile.email || ''} onChange={(event) => setProfile({ ...profile, email: event.target.value })} className="input" />
-              <select value={profile.role || 'student'} onChange={(event) => setProfile({ ...profile, role: event.target.value })} className="input">
-                <option value="student">Student</option>
-                <option value="lecturer">Lecturer</option>
-                <option value="staff">Staff</option>
-                <option value="security">Security</option>
-                <option value="admin">Admin</option>
-              </select>
+              <input required type="email" placeholder="Email" value={profile.email || ''} readOnly className="input cursor-not-allowed opacity-70" />
+              <input placeholder="Role" value={profile.role || 'student'} readOnly className="input cursor-not-allowed capitalize opacity-70" />
               <input placeholder="Registration number" value={profile.registrationNumber || ''} onChange={(event) => setProfile({ ...profile, registrationNumber: event.target.value })} className="input" />
               <input placeholder="Faculty" value={profile.faculty || ''} onChange={(event) => setProfile({ ...profile, faculty: event.target.value })} className="input" />
               <input placeholder="Department" value={profile.department || ''} onChange={(event) => setProfile({ ...profile, department: event.target.value })} className="input" />

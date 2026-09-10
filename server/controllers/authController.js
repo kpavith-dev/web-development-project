@@ -31,6 +31,7 @@ export const login = async (req, res) => {
     const { email, password } = req.body;
     const user = await User.findOne({ email });
     if (!user) return sendError(res, 'Invalid credentials', 401);
+    if (!user.isActive) return sendError(res, 'Account is deactivated. Please contact an administrator.', 403);
 
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) return sendError(res, 'Invalid credentials', 401);

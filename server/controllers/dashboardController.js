@@ -20,15 +20,23 @@ export const getDashboard = async (req, res) => {
       }, 'Dashboard data fetched');
     }
 
-    const [users, areas, slots, reservations] = await Promise.all([
+    const [users, areas, slots] = await Promise.all([
       User.countDocuments(),
       ParkingArea.countDocuments(),
-      ParkingSlot.countDocuments(),
-      Reservation.countDocuments()
+      ParkingSlot.countDocuments()
     ]);
 
-    const availableSlots = await ParkingSlot.countDocuments({ status: 'available' });
-    const occupiedSlots = await ParkingSlot.countDocuments({ status: 'occupied' });
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const startOfMonth = new Date(startOfDay.getFullYear(), startOfDay.getMonth(), 1);
+    const [availableSlots, occupiedSlots, reservedSlots, maintenanceSlots, todaysReservations, monthlyReservations] = await Promise.all([
+      ParkingSlot.countDocuments({ isActive: true, status: 'available' }),
+      ParkingSlot.countDocuments({ isActive: true, status: 'occupied' }),
+      ParkingSlot.countDocuments({ isActive: true, status: 'reserved' }),
+      ParkingSlot.countDocuments({ status: 'maintenance' }),
+      Reservation.countDocuments({ bookingDate: { $gte: startOfDay, $lt: new Date(startOfDay.getTime() + 86400000) } }),
+      Reservation.countDocuments({ bookingDate: { $gte: startOfMonth } })
+    ]);
 
     return sendSuccess(res, {
       totalUsers: users,
@@ -36,8 +44,10 @@ export const getDashboard = async (req, res) => {
       totalSlots: slots,
       availableSlots,
       occupiedSlots,
-      todaysReservations: reservations,
-      monthlyReservations: reservations,
+      reservedSlots,
+      maintenanceSlots,
+      todaysReservations,
+      monthlyReservations,
       peakParkingHours: ['08:00', '10:00', '13:00']
     }, 'Dashboard data fetched');
   } catch (error) {

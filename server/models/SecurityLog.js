@@ -3,7 +3,10 @@ import mongoose from 'mongoose';
 const securityLogSchema = new mongoose.Schema({
   reservationId: { type: String, required: true },
   action: { type: String, enum: ['check-in', 'check-out', 'approved-entry', 'approved-exit'], required: true },
-  officer: { type: String },
+  officer: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  vehicle: { type: mongoose.Schema.Types.ObjectId, ref: 'Vehicle' },
+  slot: { type: mongoose.Schema.Types.ObjectId, ref: 'ParkingSlot' },
+  description: { type: String },
   timestamp: { type: Date, default: Date.now }
 }, { timestamps: true });
 

@@ -13,9 +13,12 @@ export const authenticate = async (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({ success: false, message: 'User not found.' });
     }
+    if (!req.user.isActive) {
+      return res.status(403).json({ success: false, message: 'Account is deactivated. Please contact an administrator.' });
+    }
     next();
   } catch (error) {
-    res.status(401).json({ success: false, message: 'Invalid token.' });
+    res.status(401).json({ success: false, message: 'Invalid or expired token.' });
   }
 };
 

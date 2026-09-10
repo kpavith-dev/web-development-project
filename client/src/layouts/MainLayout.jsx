@@ -1,7 +1,8 @@
 ﻿import { NavLink } from 'react-router-dom';
-import { useState } from 'react';
-import { FaHome, FaCar, FaMapMarkedAlt, FaParking, FaShieldAlt, FaChartBar, FaUser, FaBars, FaBell, FaSignOutAlt } from 'react-icons/fa';
+import { useEffect, useState } from 'react';
+import { FaHome, FaCar, FaMapMarkedAlt, FaParking, FaShieldAlt, FaChartBar, FaUser, FaUsers, FaBars, FaBell, FaSignOutAlt } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
+import api from '../services/api';
 
 const navItems = [
   { label: 'Dashboard', path: '/dashboard', icon: FaHome },
@@ -10,21 +11,33 @@ const navItems = [
   { label: 'Slots', path: '/slots', icon: FaParking },
   { label: 'Security', path: '/security', icon: FaShieldAlt },
   { label: 'Reports', path: '/reports', icon: FaChartBar },
+  { label: 'Users', path: '/users', icon: FaUsers },
   { label: 'Profile', path: '/profile', icon: FaUser }
 ];
 
 const roleNavMap = {
-  student: ['/dashboard', '/reservations', '/areas', '/slots', '/profile'],
-  lecturer: ['/dashboard', '/reservations', '/areas', '/slots', '/profile'],
-  staff: ['/dashboard', '/reservations', '/areas', '/slots', '/profile'],
+  student: ['/dashboard', '/reservations', '/profile'],
+  lecturer: ['/dashboard', '/reservations', '/profile'],
+  staff: ['/dashboard', '/reservations', '/profile'],
   security: ['/dashboard', '/security', '/profile'],
-  admin: ['/dashboard', '/reservations', '/areas', '/slots', '/security', '/reports', '/profile']
+  admin: ['/dashboard', '/reservations', '/areas', '/slots', '/security', '/reports', '/users', '/profile']
 };
 
 const MainLayout = ({ children }) => {
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifications, setShowNotifications] = useState(false);
   const visibleItems = navItems.filter((item) => (roleNavMap[user?.role] || roleNavMap.student).includes(item.path));
+
+  useEffect(() => {
+    api.get('/notifications').then(({ data }) => setNotifications(data.data || [])).catch(() => {});
+  }, []);
+
+  const markAllRead = async () => {
+    await api.patch('/notifications/read-all');
+    setNotifications((current) => current.map((notification) => ({ ...notification, isRead: true })));
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -71,9 +84,20 @@ const MainLayout = ({ children }) => {
 
           <div className="flex items-center gap-3">
             <div className="rounded-full bg-cyan-600/20 px-4 py-2 text-sm capitalize text-cyan-300">{user?.name || 'User'}</div>
-            <button className="rounded-full border border-slate-700 p-2 text-slate-300 transition hover:border-cyan-500 hover:text-cyan-300">
-              <FaBell />
-            </button>
+            <div className="relative">
+              <button aria-label="Notifications" onClick={() => setShowNotifications((current) => !current)} className="relative rounded-full border border-slate-700 p-2 text-slate-300 transition hover:border-cyan-500 hover:text-cyan-300">
+                <FaBell />
+                {notifications.some((notification) => !notification.isRead) && <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-rose-500" />}
+              </button>
+              {showNotifications && (
+                <div className="absolute right-0 top-12 z-50 w-80 rounded-xl border border-slate-700 bg-slate-900 p-3 shadow-2xl">
+                  <div className="mb-2 flex items-center justify-between"><p className="font-semibold">Notifications</p><button onClick={markAllRead} className="text-xs text-cyan-300">Mark all read</button></div>
+                  <div className="max-h-72 space-y-2 overflow-auto">
+                    {notifications.length ? notifications.map((notification) => <div key={notification._id} className={`rounded-lg p-2 text-sm ${notification.isRead ? 'bg-slate-800/50 text-slate-400' : 'bg-cyan-500/10 text-slate-200'}`}><p className="font-medium">{notification.title}</p><p>{notification.message}</p></div>) : <p className="py-4 text-sm text-slate-400">No notifications.</p>}
+                  </div>
+                </div>
+              )}
+            </div>
             <button onClick={logout} className="flex items-center gap-2 rounded-full border border-slate-700 px-3 py-2 text-sm text-slate-300 transition hover:border-rose-500 hover:text-rose-300">
               <FaSignOutAlt /> Sign out
             </button>

@@ -1,12 +1,14 @@
 ﻿import { useEffect, useState } from 'react';
 import { FaCalendarPlus, FaQrcode, FaTimes } from 'react-icons/fa';
 import { toast } from 'react-toastify';
+import { io } from 'socket.io-client';
 import api from '../services/api';
 
 const todayString = () => new Date().toISOString().slice(0, 10);
 
 const initialForm = () => ({
   slot: '',
+  vehicle: '',
   bookingDate: todayString(),
   arrivalTime: '08:00',
   departureTime: '10:00'
@@ -24,6 +26,7 @@ const statusClasses = {
 const ReservationsPage = () => {
   const [form, setForm] = useState(initialForm);
   const [slots, setSlots] = useState([]);
+  const [vehicles, setVehicles] = useState([]);
   const [reservations, setReservations] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [loadingReservations, setLoadingReservations] = useState(true);
@@ -51,6 +54,7 @@ const ReservationsPage = () => {
           date: form.bookingDate,
           arrivalTime: form.arrivalTime,
           departureTime: form.departureTime
+          ,vehicleType: vehicles.find((vehicle) => vehicle._id === form.vehicle)?.vehicleType
         }
       });
       setSlots(data.data || []);
@@ -67,7 +71,19 @@ const ReservationsPage = () => {
   }, []);
 
   useEffect(() => {
+    api.get('/vehicles').then(({ data }) => setVehicles((data.data || []).filter((vehicle) => vehicle.isActive && vehicle.verificationStatus === 'verified'))).catch(() => setVehicles([]));
+  }, []);
+
+  useEffect(() => {
     loadSlots();
+  }, [form.bookingDate, form.arrivalTime, form.departureTime, form.vehicle, vehicles]);
+
+  useEffect(() => {
+    const socket = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000', {
+      auth: { token: localStorage.getItem('parking_token') }
+    });
+    socket.on('slot:updated', loadSlots);
+    return () => socket.disconnect();
   }, [form.bookingDate, form.arrivalTime, form.departureTime]);
 
   const reserve = async (event) => {
@@ -120,7 +136,7 @@ const ReservationsPage = () => {
 
         {showForm && (
           <form onSubmit={reserve} className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
               <div>
                 <label className="mb-2 block text-sm text-slate-400">Booking date</label>
                 <input type="date" min={todayString()} value={form.bookingDate} onChange={(event) => setForm({ ...form, bookingDate: event.target.value, slot: '' })} className="input" required />
@@ -132,6 +148,13 @@ const ReservationsPage = () => {
               <div>
                 <label className="mb-2 block text-sm text-slate-400">Departure time</label>
                 <input type="time" value={form.departureTime} onChange={(event) => setForm({ ...form, departureTime: event.target.value, slot: '' })} className="input" required />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm text-slate-400">Vehicle</label>
+                <select value={form.vehicle} onChange={(event) => setForm({ ...form, vehicle: event.target.value, slot: '' })} className="input">
+                  <option value="">No vehicle selected</option>
+                  {vehicles.map((vehicle) => <option key={vehicle._id} value={vehicle._id}>{vehicle.vehicleNumber} · {vehicle.vehicleType}</option>)}
+                </select>
               </div>
               <div>
                 <label className="mb-2 block text-sm text-slate-400">Available slot</label>

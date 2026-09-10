@@ -13,8 +13,14 @@ const userSchema = new mongoose.Schema({
   vehicleType: { type: String, trim: true },
   vehicleBrand: { type: String, trim: true },
   profilePicture: { type: String },
+  avatar: { type: String },
   isActive: { type: Boolean, default: true },
-  isVerified: { type: Boolean, default: false }
+  isVerified: { type: Boolean, default: false },
+  resetPasswordToken: { type: String },
+  resetPasswordExpires: { type: Date }
 }, { timestamps: true });
+
+userSchema.index({ role: 1, isActive: 1 });
+userSchema.index({ name: 'text', email: 'text', registrationNumber: 'text' });
 
 export default mongoose.model('User', userSchema);

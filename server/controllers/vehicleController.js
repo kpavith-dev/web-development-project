@@ -7,7 +7,13 @@ export const createVehicle = async (req, res) => {
     if (!mongoose.connection.readyState || mongoose.connection.readyState !== 1) {
       return sendError(res, 'Database is unavailable in preview mode.', 503);
     }
-    const vehicle = await Vehicle.create({ ...req.body, imageUrl: req.file ? `/uploads/vehicles/${req.file.filename}` : undefined, user: req.user._id });
+    const { vehicleNumber, vehicleType = 'car', vehicleBrand, model, color, registrationNumber, isPrimary = false } = req.body;
+    if (!/^[A-Z0-9 -]{3,20}$/i.test(vehicleNumber || '')) return sendError(res, 'Provide a valid vehicle number', 400);
+    if (!['car', 'motorcycle', 'bicycle', 'ev'].includes(vehicleType)) return sendError(res, 'Invalid vehicle type', 400);
+    const duplicate = await Vehicle.exists({ user: req.user._id, vehicleNumber: vehicleNumber.trim().toUpperCase() });
+    if (duplicate) return sendError(res, 'This vehicle is already registered to your account', 409);
+    if (isPrimary === true || isPrimary === 'true') await Vehicle.updateMany({ user: req.user._id }, { isPrimary: false });
+    const vehicle = await Vehicle.create({ vehicleNumber, vehicleType, vehicleBrand, model, color, registrationNumber, isPrimary: isPrimary === true || isPrimary === 'true', imageUrl: req.file ? `/uploads/vehicles/${req.file.filename}` : undefined, user: req.user._id });
     return sendSuccess(res, vehicle, 'Vehicle created', 201);
   } catch (error) {
     return sendError(res, error.message, 500);
@@ -28,7 +34,14 @@ export const getVehicles = async (req, res) => {
 
 export const updateVehicle = async (req, res) => {
   try {
-    const update = { ...req.body };
+    const allowed = ['vehicleNumber', 'vehicleType', 'vehicleBrand', 'model', 'color', 'registrationNumber', 'isPrimary', 'isActive'];
+    const update = allowed.reduce((result, field) => {
+      if (req.body[field] !== undefined) result[field] = req.body[field];
+      return result;
+    }, {});
+    if (update.vehicleNumber && !/^[A-Z0-9 -]{3,20}$/i.test(update.vehicleNumber)) return sendError(res, 'Provide a valid vehicle number', 400);
+    if (update.vehicleType && !['car', 'motorcycle', 'bicycle', 'ev'].includes(update.vehicleType)) return sendError(res, 'Invalid vehicle type', 400);
+    if (update.isPrimary === true || update.isPrimary === 'true') await Vehicle.updateMany({ user: req.user._id }, { isPrimary: false });
     if (req.file) update.imageUrl = `/uploads/vehicles/${req.file.filename}`;
     const vehicle = await Vehicle.findOneAndUpdate({ _id: req.params.id, user: req.user._id }, update, { new: true, runValidators: true });
     if (!vehicle) return sendError(res, 'Vehicle not found', 404);

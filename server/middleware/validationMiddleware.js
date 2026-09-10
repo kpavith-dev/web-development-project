@@ -8,7 +8,7 @@ export const handleValidationErrors = (req, res, next) => {
       success: false,
       message: 'Validation failed',
       errors: errors.array().map(err => ({
-        field: err.param,
+        field: err.path || err.param || 'field',
         message: err.msg
       }))
     });
@@ -30,7 +30,7 @@ export const validateRegister = [
     .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/).withMessage('Password must contain uppercase, lowercase, and numbers'),
   body('role')
     .optional()
-    .isIn(['student', 'staff']).withMessage('Role must be student or staff'),
+    .isIn(['student', 'lecturer', 'staff']).withMessage('Role must be student, lecturer, or staff'),
 ];
 
 export const validateLogin = [
@@ -85,12 +85,12 @@ export const validateSlot = [
   body('slotNumber')
     .notEmpty().withMessage('Slot number is required')
     .trim(),
-  body('area')
-    .notEmpty().withMessage('Area ID is required')
+  body('parkingArea')
+    .notEmpty().withMessage('Parking area ID is required')
     .isMongoId().withMessage('Invalid area ID'),
-  body('type')
-    .notEmpty().withMessage('Slot type is required')
-    .isIn(['regular', 'accessible', 'reserved']).withMessage('Invalid slot type'),
+  body('vehicleTypeAllowed')
+    .optional()
+    .isIn(['car', 'motorcycle', 'bicycle', 'ev']).withMessage('Invalid vehicle type allowed'),
 ];
 
 // Parking area validation
@@ -99,8 +99,6 @@ export const validateArea = [
     .notEmpty().withMessage('Area name is required')
     .trim()
     .isLength({ min: 2, max: 100 }).withMessage('Area name must be between 2 and 100 characters'),
-  body('location')
-    .notEmpty().withMessage('Location is required'),
   body('totalSlots')
     .isInt({ min: 1 }).withMessage('Total slots must be a positive number'),
 ];

@@ -28,13 +28,15 @@ const SecurityPage = () => {
 
   const submit = async (action) => {
     if (!reservationId.trim()) {
-      toast.info('Enter a reservation reference first.');
+      toast.info('Enter a reservation reference or scan a QR pass first.');
       return;
     }
 
     setBusy(true);
     try {
-      const { data } = await api.post(`/security/${action === 'check-in' ? 'check-in' : 'check-out'}`, { reservationId: reservationId.trim() });
+      const value = reservationId.trim();
+      const body = value.split('.').length === 3 ? { qrData: value } : { reservationId: value };
+      const { data } = await api.post(`/security/${action === 'check-in' ? 'check-in' : 'check-out'}`, body);
       setResult(data.data || null);
       toast.success(data.message || `${action === 'check-in' ? 'Check-in' : 'Check-out'} approved.`);
       loadReservations();
@@ -55,12 +57,12 @@ const SecurityPage = () => {
           </span>
           <div>
             <h1 className="text-xl font-semibold">Entry & exit verification</h1>
-            <p className="text-sm text-slate-400">Approve check-in or check-out using a reservation reference.</p>
+            <p className="text-sm text-slate-400">Approve check-in or check-out with a reservation reference or signed QR pass.</p>
           </div>
         </div>
 
-        <label className="mt-8 block text-sm text-slate-300">Reservation ID</label>
-        <input autoFocus value={reservationId} onChange={(event) => setReservationId(event.target.value)} placeholder="e.g. RES-1720000000000" className="input mt-2" />
+        <label className="mt-8 block text-sm text-slate-300">Reservation ID or QR pass data</label>
+        <input autoFocus value={reservationId} onChange={(event) => setReservationId(event.target.value)} placeholder="e.g. RES-... or scan QR pass" className="input mt-2" />
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <button disabled={busy} onClick={() => submit('check-in')} className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 font-semibold transition hover:bg-emerald-500 disabled:opacity-60">

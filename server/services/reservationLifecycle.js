@@ -2,16 +2,17 @@ import Reservation from '../models/Reservation.js';
 import Notification from '../models/Notification.js';
 import ParkingSlot from '../models/ParkingSlot.js';
 import { emitSlotUpdate } from '../socket.js';
+import { syncSlotStatus } from './slotStatus.js';
 
 export const processReservationLifecycle = async () => {
   const now = new Date();
   const expired = await Reservation.find({ status: { $in: ['pending', 'confirmed'] }, expiresAt: { $lte: now } });
   await Promise.all(expired.map(async (reservation) => {
-    reservation.status = 'expired';
+    reservation.status = 'no-show';
     await reservation.save();
-    const slot = await ParkingSlot.findByIdAndUpdate(reservation.slot, { status: 'available' }, { new: true });
+    const slot = await syncSlotStatus(reservation.slot);
     emitSlotUpdate(slot);
-    await Notification.create({ user: reservation.user, title: 'Reservation cancelled', message: `You did not arrive within the ${reservation.gracePeriodMinutes}-minute grace period.`, type: 'reservation-expired' });
+    await Notification.create({ user: reservation.user, title: 'Reservation expired', message: `You did not arrive within the ${reservation.gracePeriodMinutes}-minute grace period.`, type: 'reservation-expired' });
   }));
 
   const reminderWindow = new Date(now.getTime() + 30 * 60 * 1000);

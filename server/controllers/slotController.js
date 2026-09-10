@@ -10,7 +10,7 @@ export const getSlots = async (req, res) => {
       return sendSuccess(res, [], 'Parking slots fetched');
     }
 
-    const { date, arrivalTime, departureTime } = req.query;
+    const { date, arrivalTime, departureTime, vehicleType } = req.query;
     let unavailableIds = [];
     if (date || arrivalTime || departureTime) {
       const start = new Date(date);
@@ -22,7 +22,9 @@ export const getSlots = async (req, res) => {
       const reservations = await Reservation.find({ bookingDate: { $gte: start, $lt: end }, status: { $in: ['pending', 'confirmed', 'checked-in'] }, arrivalTime: { $lt: departureTime }, departureTime: { $gt: arrivalTime } }).select('slot');
       unavailableIds = reservations.map(({ slot }) => slot);
     }
-    const slots = await ParkingSlot.find({ isActive: true, status: { $ne: 'maintenance' }, _id: { $nin: unavailableIds } }).populate('parkingArea');
+    const filter = { isActive: true, status: { $ne: 'maintenance' }, _id: { $nin: unavailableIds } };
+    if (vehicleType) filter.vehicleTypeAllowed = vehicleType;
+    const slots = await ParkingSlot.find(filter).populate('parkingArea');
     return sendSuccess(res, slots, 'Parking slots fetched');
   } catch (error) {
     return sendError(res, error.message, 500);
@@ -52,6 +54,7 @@ export const createSlot = async (req, res) => {
 export const updateSlot = async (req, res) => {
   try {
     const slot = await ParkingSlot.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!slot) return sendError(res, 'Slot not found', 404);
     if (slot) emitSlotUpdate(slot);
     return sendSuccess(res, slot, 'Parking slot updated');
   } catch (error) {
@@ -61,7 +64,11 @@ export const updateSlot = async (req, res) => {
 
 export const deleteSlot = async (req, res) => {
   try {
-    await ParkingSlot.findByIdAndDelete(req.params.id);
+    const slot = await ParkingSlot.findById(req.params.id);
+    if (!slot) return sendError(res, 'Slot not found', 404);
+    const activeReservation = await Reservation.exists({ slot: slot._id, status: { $in: ['pending', 'confirmed', 'checked-in'] } });
+    if (activeReservation) return sendError(res, 'This slot has active reservations and cannot be deleted', 409);
+    await slot.deleteOne();
     return sendSuccess(res, null, 'Parking slot deleted');
   } catch (error) {
     return sendError(res, error.message, 500);
