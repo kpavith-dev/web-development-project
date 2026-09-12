@@ -1,11 +1,12 @@
 import { Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import User from './models/User.js';
+import { corsOrigin } from './utils/cors.js';
 
 let io;
 
 export const initializeSocket = (server) => {
-  io = new Server(server, { cors: { origin: process.env.CLIENT_URL || 'http://localhost:5173', methods: ['GET', 'POST'] } });
+  io = new Server(server, { cors: { origin: corsOrigin, methods: ['GET', 'POST'] } });
   io.use(async (socket, next) => {
     try {
       const token = socket.handshake.auth?.token;

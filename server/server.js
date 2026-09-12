@@ -13,6 +13,7 @@ import { processReservationLifecycle } from './services/reservationLifecycle.js'
 import { apiLimiter } from './middleware/rateLimitMiddleware.js';
 import { requestLogger, logger } from './utils/logger.js';
 import validateEnvironment from './utils/validateEnv.js';
+import { corsOrigin } from './utils/cors.js';
 
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
@@ -45,7 +46,7 @@ const httpServer = http.createServer(app);
 const PORT = process.env.PORT || 5000;
 
 app.use(helmet());
-app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173' }));
+app.use(cors({ origin: corsOrigin }));
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(requestLogger);

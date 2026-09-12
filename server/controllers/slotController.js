@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import ParkingSlot from '../models/ParkingSlot.js';
+import ParkingArea from '../models/ParkingArea.js';
 import Reservation from '../models/Reservation.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 import { emitSlotUpdate } from '../socket.js';
@@ -43,6 +44,10 @@ export const getSlotById = async (req, res) => {
 
 export const createSlot = async (req, res) => {
   try {
+    const area = await ParkingArea.findById(req.body.parkingArea);
+    if (!area) return sendError(res, 'Parking area not found', 404);
+    const count = await ParkingSlot.countDocuments({ parkingArea: area._id });
+    if (count >= area.totalSlots) return sendError(res, 'This area has reached its configured capacity', 409);
     const slot = await ParkingSlot.create(req.body);
     emitSlotUpdate(slot);
     return sendSuccess(res, slot, 'Parking slot created', 201);
@@ -53,8 +58,15 @@ export const createSlot = async (req, res) => {
 
 export const updateSlot = async (req, res) => {
   try {
+    const existing = await ParkingSlot.findById(req.params.id);
+    if (!existing) return sendError(res, 'Slot not found', 404);
+    if (req.body.parkingArea && req.body.parkingArea !== existing.parkingArea.toString()) {
+      const area = await ParkingArea.findById(req.body.parkingArea);
+      if (!area) return sendError(res, 'Parking area not found', 404);
+      const count = await ParkingSlot.countDocuments({ parkingArea: area._id });
+      if (count >= area.totalSlots) return sendError(res, 'The destination area has reached its configured capacity', 409);
+    }
     const slot = await ParkingSlot.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!slot) return sendError(res, 'Slot not found', 404);
     if (slot) emitSlotUpdate(slot);
     return sendSuccess(res, slot, 'Parking slot updated');
   } catch (error) {

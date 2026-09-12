@@ -15,6 +15,9 @@ export const authLimiter = rateLimit({
   max: 5, // Limit each IP to 5 requests per windowMs
   message: 'Too many login attempts, please try again later.',
   skipSuccessfulRequests: true, // Don't count successful requests
+  // Keep brute-force protection enabled in production, but do not lock local
+  // developers out while they are testing accounts and form validation.
+  skip: () => process.env.NODE_ENV !== 'production',
 });
 
 // Limiter for reservation creation

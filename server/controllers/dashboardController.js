@@ -16,7 +16,7 @@ export const getDashboard = async (req, res) => {
         occupiedSlots: 0,
         todaysReservations: 0,
         monthlyReservations: 0,
-        peakParkingHours: ['08:00', '10:00', '13:00']
+        peakParkingHours: []
       }, 'Dashboard data fetched');
     }
 
@@ -29,13 +29,19 @@ export const getDashboard = async (req, res) => {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
     const startOfMonth = new Date(startOfDay.getFullYear(), startOfDay.getMonth(), 1);
-    const [availableSlots, occupiedSlots, reservedSlots, maintenanceSlots, todaysReservations, monthlyReservations] = await Promise.all([
+    const [availableSlots, occupiedSlots, reservedSlots, maintenanceSlots, todaysReservations, monthlyReservations, peakHours] = await Promise.all([
       ParkingSlot.countDocuments({ isActive: true, status: 'available' }),
       ParkingSlot.countDocuments({ isActive: true, status: 'occupied' }),
       ParkingSlot.countDocuments({ isActive: true, status: 'reserved' }),
       ParkingSlot.countDocuments({ status: 'maintenance' }),
       Reservation.countDocuments({ bookingDate: { $gte: startOfDay, $lt: new Date(startOfDay.getTime() + 86400000) } }),
-      Reservation.countDocuments({ bookingDate: { $gte: startOfMonth } })
+      Reservation.countDocuments({ bookingDate: { $gte: startOfMonth } }),
+      Reservation.aggregate([
+        { $match: { bookingDate: { $gte: startOfMonth }, status: { $nin: ['cancelled'] } } },
+        { $group: { _id: '$arrivalTime', count: { $sum: 1 } } },
+        { $sort: { count: -1, _id: 1 } },
+        { $limit: 3 }
+      ])
     ]);
 
     return sendSuccess(res, {
@@ -48,7 +54,7 @@ export const getDashboard = async (req, res) => {
       maintenanceSlots,
       todaysReservations,
       monthlyReservations,
-      peakParkingHours: ['08:00', '10:00', '13:00']
+      peakParkingHours: peakHours.map((item) => item._id)
     }, 'Dashboard data fetched');
   } catch (error) {
     return sendError(res, error.message, 500);

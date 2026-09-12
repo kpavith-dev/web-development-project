@@ -9,8 +9,18 @@ export const getAreas = async (req, res) => {
     if (!mongoose.connection.readyState || mongoose.connection.readyState !== 1) {
       return sendSuccess(res, [], 'Parking areas fetched');
     }
-    const areas = await ParkingArea.find();
-    return sendSuccess(res, areas, 'Parking areas fetched');
+    const [areas, slotCounts] = await Promise.all([
+      ParkingArea.find(),
+      ParkingSlot.aggregate([{ $group: { _id: { area: '$parkingArea', status: '$status' }, count: { $sum: 1 } } }])
+    ]);
+    const countsByArea = slotCounts.reduce((result, item) => {
+      const key = item._id.area.toString();
+      result[key] ||= { availableSlots: 0, reservedSlots: 0, occupiedSlots: 0, maintenanceSlots: 0 };
+      result[key][`${item._id.status}Slots`] = item.count;
+      return result;
+    }, {});
+    const enrichedAreas = areas.map((area) => ({ ...area.toObject(), ...(countsByArea[area._id.toString()] || {}) }));
+    return sendSuccess(res, enrichedAreas, 'Parking areas fetched');
   } catch (error) {
     return sendError(res, error.message, 500);
   }
