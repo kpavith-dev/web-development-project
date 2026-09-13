@@ -13,6 +13,7 @@ const AreasPage = () => {
   const [editingId, setEditingId] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const isAdmin = user?.role === 'admin';
 
   const loadAreas = async () => {
@@ -28,6 +29,12 @@ const AreasPage = () => {
 
   useEffect(() => {
     loadAreas();
+  }, []);
+
+  useEffect(() => {
+    const closeOnEscape = (event) => event.key === 'Escape' && setModalOpen(false);
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
   }, []);
 
   const openCreate = () => {
@@ -51,6 +58,8 @@ const AreasPage = () => {
 
   const saveArea = async (event) => {
     event.preventDefault();
+    if (saving) return;
+    setSaving(true);
     try {
       const payload = { ...form, totalSlots: Number(form.totalSlots) };
       if (editingId) {
@@ -66,7 +75,7 @@ const AreasPage = () => {
       loadAreas();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Could not save area.');
-    }
+    } finally { setSaving(false); }
   };
 
   const deleteArea = async (id) => {
@@ -112,10 +121,10 @@ const AreasPage = () => {
                 </div>
                 {isAdmin && (
                   <div className="flex gap-2">
-                    <button onClick={() => openEdit(area)} className="rounded-lg border border-slate-700 p-2 text-slate-300 hover:border-cyan-500 hover:text-cyan-300">
+                    <button aria-label={`Edit ${area.name}`} onClick={() => openEdit(area)} className="rounded-lg border border-slate-700 p-2 text-slate-300 hover:border-cyan-500 hover:text-cyan-300">
                       <FaEdit />
                     </button>
-                    <button onClick={() => deleteArea(area._id)} className="rounded-lg border border-slate-700 p-2 text-slate-300 hover:border-rose-500 hover:text-rose-300">
+                    <button aria-label={`Delete ${area.name}`} onClick={() => deleteArea(area._id)} className="rounded-lg border border-slate-700 p-2 text-slate-300 hover:border-rose-500 hover:text-rose-300">
                       <FaTrash />
                     </button>
                   </div>
@@ -146,16 +155,16 @@ const AreasPage = () => {
       )}
 
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4" role="dialog" aria-modal="true" aria-labelledby="area-dialog-title">
           <div className="w-full max-w-xl rounded-2xl border border-slate-800 bg-slate-900 p-6">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold">{editingId ? 'Edit area' : 'Add area'}</h2>
-              <button onClick={() => setModalOpen(false)} className="text-slate-400">Close</button>
+              <h2 id="area-dialog-title" className="text-xl font-semibold">{editingId ? 'Edit area' : 'Add area'}</h2>
+              <button aria-label="Close area dialog" onClick={() => setModalOpen(false)} className="text-slate-400">Close</button>
             </div>
             <form onSubmit={saveArea} className="space-y-4">
-              <input required placeholder="Area name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className="input" />
-              <textarea placeholder="Description" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className="input min-h-[100px]" />
-              <input required min="1" type="number" placeholder="Total slots" value={form.totalSlots} onChange={(event) => setForm({ ...form, totalSlots: event.target.value })} className="input" />
+              <label className="block text-sm text-slate-300">Area name<input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className="input mt-2" /></label>
+              <label className="block text-sm text-slate-300">Description<textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className="input mt-2 min-h-[100px]" /></label>
+              <label className="block text-sm text-slate-300">Total slots<input required min="1" type="number" value={form.totalSlots} onChange={(event) => setForm({ ...form, totalSlots: event.target.value })} className="input mt-2" /></label>
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="text-sm text-slate-300">Opening time<input required type="time" value={form.openingTime} onChange={(event) => setForm({ ...form, openingTime: event.target.value })} className="input mt-2" /></label>
                 <label className="text-sm text-slate-300">Closing time<input required type="time" value={form.closingTime} onChange={(event) => setForm({ ...form, closingTime: event.target.value })} className="input mt-2" /></label>
@@ -163,7 +172,7 @@ const AreasPage = () => {
               <label className="flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" checked={form.isActive} onChange={(event) => setForm({ ...form, isActive: event.target.checked })} /> Area is active</label>
               <div className="flex justify-end gap-3">
                 <button type="button" onClick={() => setModalOpen(false)} className="rounded-xl border border-slate-700 px-4 py-2 text-slate-300">Cancel</button>
-                <button type="submit" className="rounded-xl bg-cyan-600 px-4 py-2 font-semibold text-white">Save</button>
+                <button type="submit" disabled={saving} className="rounded-xl bg-cyan-600 px-4 py-2 font-semibold text-white disabled:opacity-60">{saving ? 'Saving…' : 'Save'}</button>
               </div>
             </form>
           </div>

@@ -21,6 +21,7 @@ const SlotsPage = () => {
   const [editingId, setEditingId] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const isAdmin = user?.role === 'admin';
 
   const loadSlots = async () => {
@@ -38,6 +39,7 @@ const SlotsPage = () => {
   useEffect(() => {
     loadSlots();
   }, []);
+  useEffect(() => { const closeOnEscape = (event) => event.key === 'Escape' && setModalOpen(false); window.addEventListener('keydown', closeOnEscape); return () => window.removeEventListener('keydown', closeOnEscape); }, []);
 
   const openCreate = () => {
     setEditingId(null);
@@ -58,6 +60,8 @@ const SlotsPage = () => {
 
   const saveSlot = async (event) => {
     event.preventDefault();
+    if (saving) return;
+    setSaving(true);
     try {
       if (editingId) {
         await api.put(`/slots/${editingId}`, form);
@@ -72,7 +76,7 @@ const SlotsPage = () => {
       loadSlots();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Could not save slot.');
-    }
+    } finally { setSaving(false); }
   };
 
   const deleteSlot = async (id) => {
@@ -118,10 +122,10 @@ const SlotsPage = () => {
                 </div>
                 {isAdmin && (
                   <div className="flex gap-2">
-                    <button onClick={() => openEdit(slot)} className="rounded-lg border border-slate-700 p-2 text-slate-300 hover:border-cyan-500 hover:text-cyan-300">
+                    <button aria-label={`Edit slot ${slot.slotNumber}`} onClick={() => openEdit(slot)} className="rounded-lg border border-slate-700 p-2 text-slate-300 hover:border-cyan-500 hover:text-cyan-300">
                       <FaEdit />
                     </button>
-                    <button onClick={() => deleteSlot(slot._id)} className="rounded-lg border border-slate-700 p-2 text-slate-300 hover:border-rose-500 hover:text-rose-300">
+                    <button aria-label={`Delete slot ${slot.slotNumber}`} onClick={() => deleteSlot(slot._id)} className="rounded-lg border border-slate-700 p-2 text-slate-300 hover:border-rose-500 hover:text-rose-300">
                       <FaTrash />
                     </button>
                   </div>
@@ -150,35 +154,35 @@ const SlotsPage = () => {
       )}
 
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4" role="dialog" aria-modal="true" aria-labelledby="slot-dialog-title">
           <div className="w-full max-w-xl rounded-2xl border border-slate-800 bg-slate-900 p-6">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold">{editingId ? 'Edit slot' : 'Add slot'}</h2>
-              <button onClick={() => setModalOpen(false)} className="text-slate-400">Close</button>
+              <h2 id="slot-dialog-title" className="text-xl font-semibold">{editingId ? 'Edit slot' : 'Add slot'}</h2>
+              <button aria-label="Close slot dialog" onClick={() => setModalOpen(false)} className="text-slate-400">Close</button>
             </div>
             <form onSubmit={saveSlot} className="space-y-4">
-              <input required placeholder="Slot number" value={form.slotNumber} onChange={(event) => setForm({ ...form, slotNumber: event.target.value })} className="input" />
-              <select required value={form.parkingArea} onChange={(event) => setForm({ ...form, parkingArea: event.target.value })} className="input">
+              <label className="block text-sm text-slate-300">Slot number<input required value={form.slotNumber} onChange={(event) => setForm({ ...form, slotNumber: event.target.value })} className="input mt-2" /></label>
+              <label className="block text-sm text-slate-300">Parking area<select required value={form.parkingArea} onChange={(event) => setForm({ ...form, parkingArea: event.target.value })} className="input mt-2">
                 <option value="">Select area</option>
                 {areas.map((area) => (
                   <option key={area._id} value={area._id}>{area.name}</option>
                 ))}
-              </select>
-              <select value={form.vehicleTypeAllowed} onChange={(event) => setForm({ ...form, vehicleTypeAllowed: event.target.value })} className="input">
+              </select></label>
+              <label className="block text-sm text-slate-300">Allowed vehicle type<select value={form.vehicleTypeAllowed} onChange={(event) => setForm({ ...form, vehicleTypeAllowed: event.target.value })} className="input mt-2">
                 <option value="car">Car</option>
                 <option value="motorcycle">Motorcycle</option>
                 <option value="bicycle">Bicycle</option>
                 <option value="ev">EV</option>
-              </select>
-              <select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })} className="input">
+              </select></label>
+              <label className="block text-sm text-slate-300">Slot status<select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })} className="input mt-2">
                 <option value="available">Available</option>
                 <option value="reserved">Reserved</option>
                 <option value="occupied">Occupied</option>
                 <option value="maintenance">Maintenance</option>
-              </select>
+              </select></label>
               <div className="flex justify-end gap-3">
                 <button type="button" onClick={() => setModalOpen(false)} className="rounded-xl border border-slate-700 px-4 py-2 text-slate-300">Cancel</button>
-                <button type="submit" className="rounded-xl bg-cyan-600 px-4 py-2 font-semibold text-white">Save</button>
+                <button type="submit" disabled={saving} className="rounded-xl bg-cyan-600 px-4 py-2 font-semibold text-white disabled:opacity-60">{saving ? 'Saving…' : 'Save'}</button>
               </div>
             </form>
           </div>
