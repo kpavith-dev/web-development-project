@@ -28,7 +28,7 @@ cd ../client
 npm run build
 ```
 
-Current integration coverage includes authentication/JWT rejection, direct role authorization, vehicle verification field injection and review, area/slot validation, and signed-QR input rejection. The client production build is the frontend smoke check; route guards remain server-authorized by the API tests.
+Current integration coverage includes authentication/JWT rejection, direct role authorization, vehicle verification field injection and review, area/slot validation, and signed-QR input rejection. Colombo date-helper unit tests run without MongoDB. Feedback, notification, report, reservation lifecycle, security action, concurrency, and password-reset integration cases require `MONGO_TEST_URI`; transaction cases also require a replica set. Skipped tests are not passed tests.
 
 ## External services
 
