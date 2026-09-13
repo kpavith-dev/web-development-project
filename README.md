@@ -99,4 +99,8 @@ Run a frontend production build:
 cd client; npm run build
 ```
 
-The project currently has no automated integration-test runner. Database-backed flows require a reachable MongoDB instance; when it is unavailable the API reports a `503` for database routes while the health endpoint remains available.
+Database-backed tests require a reachable isolated MongoDB test database; application routes return a `503` when their database is unavailable while the health endpoint remains available.
+
+## Testing
+
+Backend tests use Vitest and Supertest with an isolated `MONGO_TEST_URI`; they never use the normal `MONGO_URI`. See [docs/testing.md](docs/testing.md) for setup, replica-set requirements, and commands.
