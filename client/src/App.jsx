@@ -13,6 +13,9 @@ import SecurityPage from './pages/SecurityPage';
 import ReportsPage from './pages/ReportsPage';
 import ProfilePage from './pages/ProfilePage';
 import UsersPage from './pages/UsersPage';
+import VehiclesPage from './pages/VehiclesPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import { useAuth } from './context/AuthContext';
 
 const App = () => {
@@ -24,6 +27,8 @@ const App = () => {
       <Routes>
         <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
         <Route path="/register" element={user ? <Navigate to="/dashboard" replace /> : <RegisterPage />} />
+        <Route path="/forgot-password" element={user ? <Navigate to="/dashboard" replace /> : <ForgotPasswordPage />} />
+        <Route path="/reset-password" element={user ? <Navigate to="/dashboard" replace /> : <ResetPasswordPage />} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={protectedPage(<DashboardPage />)} />
         <Route path="/reservations" element={protectedPage(<ReservationsPage />)} />
@@ -33,6 +38,7 @@ const App = () => {
         <Route path="/reports" element={protectedPage(<ReportsPage />, ['admin'])} />
         <Route path="/profile" element={protectedPage(<ProfilePage />)} />
         <Route path="/users" element={protectedPage(<UsersPage />, ['admin'])} />
+        <Route path="/vehicles" element={protectedPage(<VehiclesPage />, ['admin'])} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <ToastContainer position="top-right" theme="dark" />

@@ -26,6 +26,8 @@ const UsersPage = () => {
   useEffect(() => { loadUsers(); }, [filters]);
 
   const updateUser = async (id, update) => {
+    const action = update.role ? `change this user's role to ${update.role}` : `${update.isActive ? 'reactivate' : 'deactivate'} this user`;
+    if (!window.confirm(`Are you sure you want to ${action}?`)) return;
     try {
       await api.patch(`/users/${id}`, update);
       toast.success('User updated.');

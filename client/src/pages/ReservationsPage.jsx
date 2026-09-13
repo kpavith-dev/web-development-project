@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState } from 'react';
-import { FaCalendarPlus, FaQrcode, FaTimes } from 'react-icons/fa';
+import { FaCalendarPlus, FaEdit, FaQrcode, FaStar, FaTimes } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { io } from 'socket.io-client';
 import api from '../services/api';
@@ -33,6 +33,11 @@ const ReservationsPage = () => {
   const [loadingReservations, setLoadingReservations] = useState(true);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [editingReservation, setEditingReservation] = useState(null);
+  const [feedbackReservation, setFeedbackReservation] = useState(null);
+  const [feedback, setFeedback] = useState({ rating: 5, comment: '' });
+  const [feedbacks, setFeedbacks] = useState([]);
+  const [submittingFeedback, setSubmittingFeedback] = useState(false);
 
   const loadReservations = async () => {
     setLoadingReservations(true);
@@ -69,6 +74,7 @@ const ReservationsPage = () => {
 
   useEffect(() => {
     loadReservations();
+    api.get('/feedback/mine').then(({ data }) => setFeedbacks(data.data || [])).catch(() => setFeedbacks([]));
   }, []);
 
   useEffect(() => {
@@ -96,9 +102,11 @@ const ReservationsPage = () => {
 
     setSubmitting(true);
     try {
-      await api.post('/reservations', form);
-      toast.success('Reservation created successfully.');
+      if (editingReservation) await api.put(`/reservations/${editingReservation._id}`, form);
+      else await api.post('/reservations', form);
+      toast.success(editingReservation ? 'Reservation updated successfully.' : 'Reservation created successfully.');
       setShowForm(false);
+      setEditingReservation(null);
       setForm(initialForm());
       await Promise.all([loadReservations(), loadSlots()]);
     } catch (error) {
@@ -106,6 +114,25 @@ const ReservationsPage = () => {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const editReservation = (reservation) => {
+    setEditingReservation(reservation);
+    setForm({ slot: reservation.slot?._id || '', vehicle: reservation.vehicle?._id || '', bookingDate: reservation.bookingDate?.slice(0, 10), arrivalTime: reservation.arrivalTime, departureTime: reservation.departureTime });
+    setShowForm(true);
+  };
+
+  const submitFeedback = async (event) => {
+    event.preventDefault();
+    if (!feedbackReservation || submittingFeedback) return;
+    setSubmittingFeedback(true);
+    try {
+      const { data } = await api.post('/feedback', { reservation: feedbackReservation._id, rating: Number(feedback.rating), comment: feedback.comment });
+      setFeedbacks((current) => [...current, data.data]);
+      setFeedbackReservation(null); setFeedback({ rating: 5, comment: '' });
+      toast.success('Thanks for your feedback.');
+    } catch (error) { toast.error(error.response?.data?.message || 'Could not submit feedback.'); }
+    finally { setSubmittingFeedback(false); }
   };
 
   const cancelReservation = async (id) => {
@@ -130,7 +157,7 @@ const ReservationsPage = () => {
               <p className="text-sm text-slate-400">Book a slot, view your QR pass, and manage future visits.</p>
             </div>
           </div>
-          <button onClick={() => setShowForm((current) => !current)} className="rounded-xl bg-cyan-600 px-4 py-2 font-semibold text-white transition hover:bg-cyan-500">
+          <button onClick={() => { if (showForm) { setEditingReservation(null); setForm(initialForm()); } setShowForm((current) => !current); }} className="rounded-xl bg-cyan-600 px-4 py-2 font-semibold text-white transition hover:bg-cyan-500">
             {showForm ? 'Close form' : 'New reservation'}
           </button>
         </div>
@@ -153,9 +180,10 @@ const ReservationsPage = () => {
               <div>
                 <label className="mb-2 block text-sm text-slate-400">Vehicle</label>
                 <select value={form.vehicle} onChange={(event) => setForm({ ...form, vehicle: event.target.value, slot: '' })} className="input">
-                  <option value="">No vehicle selected</option>
+                  <option value="">{vehicles.length ? 'No vehicle selected' : 'No verified active vehicle available'}</option>
                   {vehicles.map((vehicle) => <option key={vehicle._id} value={vehicle._id}>{vehicle.vehicleNumber} · {vehicle.vehicleType}</option>)}
                 </select>
+                {!vehicles.length && <p className="mt-1 text-xs text-amber-300">Add a vehicle and wait for admin verification before booking.</p>}
               </div>
               <div>
                 <label className="mb-2 block text-sm text-slate-400">Available slot</label>
@@ -173,7 +201,7 @@ const ReservationsPage = () => {
             </div>
             <div className="mt-4 flex justify-end">
               <button type="submit" disabled={submitting} className="rounded-xl bg-cyan-600 px-4 py-2 font-semibold text-white transition hover:bg-cyan-500 disabled:opacity-60">
-                {submitting ? 'Creating...' : 'Confirm reservation'}
+                {submitting ? 'Saving...' : editingReservation ? 'Save changes' : 'Confirm reservation'}
               </button>
             </div>
           </form>
@@ -212,12 +240,13 @@ const ReservationsPage = () => {
                 <div className="space-y-3 text-sm text-slate-300">
                   <div className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2">
                     <span className="text-slate-400">Slot</span>
-                    <span>{reservation.slot?.slotNumber || 'Pending allocation'}</span>
+                    <span>{reservation.slot?.parkingArea?.name ? `${reservation.slot.parkingArea.name} · ` : ''}{reservation.slot?.slotNumber || 'Pending allocation'}</span>
                   </div>
                   <div className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2">
                     <span className="text-slate-400">Date</span>
                     <span>{new Date(reservation.bookingDate).toLocaleDateString()}</span>
                   </div>
+                  <div className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2"><span className="text-slate-400">Vehicle</span><span>{reservation.vehicle?.vehicleNumber || 'No vehicle'}</span></div>
                   <div className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2">
                     <span className="text-slate-400">Time</span>
                     <span>{reservation.arrivalTime} - {reservation.departureTime}</span>
@@ -235,10 +264,9 @@ const ReservationsPage = () => {
                 )}
 
                 {['pending', 'confirmed'].includes(reservation.status) && (
-                  <button onClick={() => cancelReservation(reservation._id)} className="mt-4 flex items-center gap-2 rounded-xl border border-rose-500/40 px-3 py-2 text-sm text-rose-300 transition hover:bg-rose-500/10">
-                    <FaTimes /> Cancel reservation
-                  </button>
+                  <div className="mt-4 flex flex-wrap gap-2"><button onClick={() => editReservation(reservation)} className="flex items-center gap-2 rounded-xl border border-cyan-500/40 px-3 py-2 text-sm text-cyan-300"><FaEdit /> Edit</button><button onClick={() => cancelReservation(reservation._id)} className="flex items-center gap-2 rounded-xl border border-rose-500/40 px-3 py-2 text-sm text-rose-300 transition hover:bg-rose-500/10"><FaTimes /> Cancel reservation</button></div>
                 )}
+                {reservation.status === 'checked-out' && (feedbacks.some((item) => item.reservation === reservation._id || item.reservation?._id === reservation._id) ? <p className="mt-4 text-sm text-emerald-300">Feedback submitted</p> : <button onClick={() => setFeedbackReservation(reservation)} className="mt-4 flex items-center gap-2 rounded-xl border border-amber-500/40 px-3 py-2 text-sm text-amber-300"><FaStar /> Leave feedback</button>)}
               </article>
             ))}
           </div>
@@ -248,6 +276,7 @@ const ReservationsPage = () => {
           </div>
         )}
       </section>
+      {feedbackReservation && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4"><form onSubmit={submitFeedback} className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6"><h2 className="text-lg font-semibold">Feedback for {feedbackReservation.reservationId}</h2><label className="mt-4 block text-sm text-slate-400">Rating</label><select value={feedback.rating} onChange={(event) => setFeedback({ ...feedback, rating: event.target.value })} className="input mt-1">{[5, 4, 3, 2, 1].map((rating) => <option key={rating} value={rating}>{rating} star{rating !== 1 ? 's' : ''}</option>)}</select><label className="mt-4 block text-sm text-slate-400">Comment (optional)</label><textarea maxLength="500" value={feedback.comment} onChange={(event) => setFeedback({ ...feedback, comment: event.target.value })} className="input mt-1 min-h-28" /><div className="mt-5 flex justify-end gap-3"><button type="button" onClick={() => setFeedbackReservation(null)} className="rounded-xl border border-slate-700 px-4 py-2">Cancel</button><button disabled={submittingFeedback} className="rounded-xl bg-cyan-600 px-4 py-2 font-semibold disabled:opacity-60">{submittingFeedback ? 'Sending...' : 'Submit feedback'}</button></div></form></div>}
     </div>
   );
 };

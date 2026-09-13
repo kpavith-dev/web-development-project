@@ -12,6 +12,7 @@ const navItems = [
   { label: 'Security', path: '/security', icon: FaShieldAlt },
   { label: 'Reports', path: '/reports', icon: FaChartBar },
   { label: 'Users', path: '/users', icon: FaUsers },
+  { label: 'Vehicles', path: '/vehicles', icon: FaCar },
   { label: 'Profile', path: '/profile', icon: FaUser }
 ];
 
@@ -20,7 +21,7 @@ const roleNavMap = {
   lecturer: ['/dashboard', '/reservations', '/profile'],
   staff: ['/dashboard', '/reservations', '/profile'],
   security: ['/dashboard', '/security', '/profile'],
-  admin: ['/dashboard', '/reservations', '/areas', '/slots', '/security', '/reports', '/users', '/profile']
+  admin: ['/dashboard', '/reservations', '/areas', '/slots', '/security', '/reports', '/users', '/vehicles', '/profile']
 };
 
 const MainLayout = ({ children }) => {
@@ -35,8 +36,11 @@ const MainLayout = ({ children }) => {
   }, []);
 
   const markAllRead = async () => {
-    await api.patch('/notifications/read-all');
-    setNotifications((current) => current.map((notification) => ({ ...notification, isRead: true })));
+    try { await api.patch('/notifications/read-all'); setNotifications((current) => current.map((notification) => ({ ...notification, isRead: true }))); } catch { /* Keep the current state if syncing fails. */ }
+  };
+  const markRead = async (notification) => {
+    if (notification.isRead) return;
+    try { const { data } = await api.patch(`/notifications/${notification._id}/read`); setNotifications((current) => current.map((item) => item._id === notification._id ? data.data : item)); } catch { /* The dropdown remains usable if a notification was removed. */ }
   };
 
   return (
@@ -91,9 +95,9 @@ const MainLayout = ({ children }) => {
               </button>
               {showNotifications && (
                 <div className="absolute right-0 top-12 z-50 w-80 rounded-xl border border-slate-700 bg-slate-900 p-3 shadow-2xl">
-                  <div className="mb-2 flex items-center justify-between"><p className="font-semibold">Notifications</p><button onClick={markAllRead} className="text-xs text-cyan-300">Mark all read</button></div>
+                  <div className="mb-2 flex items-center justify-between"><p className="font-semibold">Notifications ({notifications.filter((notification) => !notification.isRead).length} unread)</p><button onClick={markAllRead} disabled={!notifications.some((notification) => !notification.isRead)} className="text-xs text-cyan-300 disabled:opacity-40">Mark all read</button></div>
                   <div className="max-h-72 space-y-2 overflow-auto">
-                    {notifications.length ? notifications.map((notification) => <div key={notification._id} className={`rounded-lg p-2 text-sm ${notification.isRead ? 'bg-slate-800/50 text-slate-400' : 'bg-cyan-500/10 text-slate-200'}`}><p className="font-medium">{notification.title}</p><p>{notification.message}</p></div>) : <p className="py-4 text-sm text-slate-400">No notifications.</p>}
+                    {notifications.length ? notifications.map((notification) => <button key={notification._id} onClick={() => markRead(notification)} className={`w-full rounded-lg p-2 text-left text-sm ${notification.isRead ? 'bg-slate-800/50 text-slate-400' : 'bg-cyan-500/10 text-slate-200'}`}><p className="font-medium">{notification.title}</p><p>{notification.message}</p>{!notification.isRead && <span className="text-xs text-cyan-300">Mark as read</span>}</button>) : <p className="py-4 text-sm text-slate-400">No notifications.</p>}
                   </div>
                 </div>
               )}

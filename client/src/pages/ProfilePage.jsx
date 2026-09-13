@@ -1,16 +1,18 @@
 ﻿import { useEffect, useState } from 'react';
-import { FaCar, FaPlus, FaSave, FaTrash } from 'react-icons/fa';
+import { FaCar, FaEdit, FaPlus, FaSave, FaStar, FaTrash } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
-const blankVehicle = { vehicleNumber: '', vehicleType: 'car', vehicleBrand: '' };
+const blankVehicle = { vehicleNumber: '', vehicleType: 'car', vehicleBrand: '', registrationNumber: '', model: '', color: '' };
 
 const ProfilePage = () => {
   const { user: sessionUser, updateUser } = useAuth();
   const [profile, setProfile] = useState(sessionUser || {});
   const [vehicles, setVehicles] = useState([]);
   const [vehicleForm, setVehicleForm] = useState(blankVehicle);
+  const [vehicleImage, setVehicleImage] = useState(null);
+  const [editingVehicleId, setEditingVehicleId] = useState(null);
   const [editingProfile, setEditingProfile] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -50,13 +52,30 @@ const ProfilePage = () => {
   const addVehicle = async (event) => {
     event.preventDefault();
     try {
-      await api.post('/vehicles', vehicleForm);
+      const payload = new FormData();
+      Object.entries(vehicleForm).forEach(([field, value]) => payload.append(field, value));
+      if (vehicleImage) payload.append('image', vehicleImage);
+      if (editingVehicleId) await api.put(`/vehicles/${editingVehicleId}`, payload);
+      else await api.post('/vehicles', payload);
       setVehicleForm(blankVehicle);
-      toast.success('Vehicle added.');
+      setVehicleImage(null);
+      setEditingVehicleId(null);
+      toast.success(editingVehicleId ? 'Vehicle updated and submitted for review.' : 'Vehicle added for verification.');
       loadProfile();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Could not add vehicle.');
     }
+  };
+
+  const editVehicle = (vehicle) => {
+    setEditingVehicleId(vehicle._id);
+    setVehicleImage(null);
+    setVehicleForm({ vehicleNumber: vehicle.vehicleNumber || '', vehicleType: vehicle.vehicleType || 'car', vehicleBrand: vehicle.vehicleBrand || '', registrationNumber: vehicle.registrationNumber || '', model: vehicle.model || '', color: vehicle.color || '' });
+  };
+
+  const setPrimary = async (vehicle) => {
+    try { await api.put(`/vehicles/${vehicle._id}`, { isPrimary: true }); toast.success('Primary vehicle updated.'); loadProfile(); }
+    catch (error) { toast.error(error.response?.data?.message || 'Could not update primary vehicle.'); }
   };
 
   const deleteVehicle = async (id) => {
@@ -149,7 +168,7 @@ const ProfilePage = () => {
       <section className="space-y-6">
         <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
           <h2 className="text-lg font-semibold">My vehicles</h2>
-          <p className="mt-1 text-sm text-slate-400">Add or remove your registered vehicles.</p>
+          <p className="mt-1 text-sm text-slate-400">Add, edit, and track verification of your registered vehicles.</p>
 
           <form onSubmit={addVehicle} className="mt-5 space-y-3">
             <input required placeholder="Vehicle number" value={vehicleForm.vehicleNumber} onChange={(event) => setVehicleForm({ ...vehicleForm, vehicleNumber: event.target.value })} className="input" />
@@ -162,9 +181,9 @@ const ProfilePage = () => {
               </select>
               <input placeholder="Vehicle brand" value={vehicleForm.vehicleBrand} onChange={(event) => setVehicleForm({ ...vehicleForm, vehicleBrand: event.target.value })} className="input" />
             </div>
-            <button type="submit" className="flex items-center gap-2 rounded-xl bg-cyan-600 px-4 py-2 font-semibold text-white transition hover:bg-cyan-500">
-              <FaPlus /> Add vehicle
-            </button>
+            <div className="grid gap-3 sm:grid-cols-3"><input placeholder="Registration number" value={vehicleForm.registrationNumber} onChange={(event) => setVehicleForm({ ...vehicleForm, registrationNumber: event.target.value })} className="input" /><input placeholder="Model" value={vehicleForm.model} onChange={(event) => setVehicleForm({ ...vehicleForm, model: event.target.value })} className="input" /><input placeholder="Color" value={vehicleForm.color} onChange={(event) => setVehicleForm({ ...vehicleForm, color: event.target.value })} className="input" /></div>
+            <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setVehicleImage(event.target.files?.[0] || null)} className="input" />
+            <div className="flex gap-3"><button type="submit" className="flex items-center gap-2 rounded-xl bg-cyan-600 px-4 py-2 font-semibold text-white transition hover:bg-cyan-500"><FaPlus /> {editingVehicleId ? 'Save vehicle' : 'Add vehicle'}</button>{editingVehicleId && <button type="button" onClick={() => { setEditingVehicleId(null); setVehicleForm(blankVehicle); }} className="rounded-xl border border-slate-700 px-4 py-2 text-sm">Cancel</button>}</div>
           </form>
         </div>
 
@@ -172,14 +191,14 @@ const ProfilePage = () => {
           {vehicles.length ? (
             <div className="space-y-3">
               {vehicles.map((vehicle) => (
-                <div key={vehicle._id} className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/70 px-4 py-3">
+                <div key={vehicle._id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/70 px-4 py-3">
                   <div>
-                    <p className="font-semibold text-slate-100">{vehicle.vehicleNumber}</p>
+                    <p className="font-semibold text-slate-100">{vehicle.vehicleNumber} {vehicle.isPrimary && <span className="text-amber-300">★ Primary</span>}</p>
                     <p className="text-sm text-slate-400 capitalize">{vehicle.vehicleType || 'car'} · {vehicle.vehicleBrand || 'No brand'}</p>
+                    <p className={`mt-1 text-xs font-semibold capitalize ${vehicle.isActive && vehicle.verificationStatus === 'verified' ? 'text-emerald-300' : vehicle.verificationStatus === 'rejected' || !vehicle.isActive ? 'text-rose-300' : 'text-amber-300'}`}>{!vehicle.isActive ? 'Inactive' : vehicle.verificationStatus}{vehicle.isActive && vehicle.verificationStatus === 'verified' ? ' · Eligible for reservations' : ''}</p>
+                    {vehicle.verificationStatus === 'rejected' && vehicle.rejectionReason && <p className="mt-1 text-xs text-rose-200">Reason: {vehicle.rejectionReason}</p>}
                   </div>
-                  <button onClick={() => deleteVehicle(vehicle._id)} className="rounded-lg border border-slate-700 p-2 text-slate-300 hover:border-rose-500 hover:text-rose-300">
-                    <FaTrash />
-                  </button>
+                  <div className="flex gap-2"><button title="Edit vehicle" onClick={() => editVehicle(vehicle)} className="rounded-lg border border-slate-700 p-2 text-slate-300 hover:border-cyan-500"><FaEdit /></button>{!vehicle.isPrimary && <button title="Set primary" onClick={() => setPrimary(vehicle)} className="rounded-lg border border-slate-700 p-2 text-amber-300"><FaStar /></button>}<button onClick={() => deleteVehicle(vehicle._id)} className="rounded-lg border border-slate-700 p-2 text-slate-300 hover:border-rose-500 hover:text-rose-300"><FaTrash /></button></div>
                 </div>
               ))}
             </div>

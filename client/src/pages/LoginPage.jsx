@@ -42,6 +42,7 @@ const LoginPage = () => {
         <p className="mt-4 text-center text-sm text-slate-400">
           Don&apos;t have an account? <Link className="text-cyan-400" to="/register">Register</Link>
         </p>
+        <p className="mt-3 text-center text-sm"><Link className="text-cyan-400" to="/forgot-password">Forgot password?</Link></p>
       </div>
     </div>
   );

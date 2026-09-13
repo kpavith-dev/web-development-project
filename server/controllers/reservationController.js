@@ -5,6 +5,7 @@ import Reservation from '../models/Reservation.js';
 import ParkingSlot from '../models/ParkingSlot.js';
 import Vehicle from '../models/Vehicle.js';
 import Notification from '../models/Notification.js';
+import { checkIn as performSecurityCheckIn, checkOut as performSecurityCheckOut } from './securityController.js';
 import QRCode from 'qrcode';
 import { sendSuccess, sendError } from '../utils/response.js';
 import { emitSlotUpdate } from '../socket.js';
@@ -24,13 +25,6 @@ const arrivalDeadline = (bookingDate, arrivalTime, gracePeriodMinutes = 15) => {
 const isWithinOperatingHours = (area, arrivalTime, departureTime) => (
   arrivalTime >= area.openingTime && departureTime <= area.closingTime
 );
-const isWithinCheckInWindow = (reservation, now = new Date()) => {
-  if (campusDateKey(reservation.bookingDate) !== campusDateKey(now)) return false;
-  const arrival = campusDateTime(reservation.bookingDate, reservation.arrivalTime);
-  const departure = campusDateTime(reservation.bookingDate, reservation.departureTime);
-  return Boolean(arrival && departure && now >= arrival && now <= departure && now <= new Date(arrival.getTime() + reservation.gracePeriodMinutes * 60 * 1000));
-};
-
 const validateBooking = async ({ slotId, vehicleId, bookingDate, arrivalTime, departureTime, userId, excludeId, session }) => {
   const bounds = campusDateBounds(bookingDate);
   if (!slotId || !bounds || !validTimeRange(arrivalTime, departureTime)) return { error: 'Provide a slot, a valid booking date, and an arrival time before departure time' };
@@ -108,7 +102,7 @@ export const createReservation = async (req, res) => {
     const { slot: slotId, vehicle: vehicleId, bookingDate, arrivalTime, departureTime } = req.body;
     if (!mongoose.isValidObjectId(slotId)) return sendError(res, 'Selected parking slot ID is invalid', 400);
     const reservationId = `RES-${crypto.randomUUID()}`;
-    const qrData = jwt.sign({ reservationId, userId: req.user._id.toString(), type: 'parking-pass' }, process.env.JWT_SECRET, { expiresIn: '30d' });
+    const qrData = jwt.sign({ reservationId, userId: req.user._id.toString(), slotId: slotId.toString(), ...(vehicleId ? { vehicleId: vehicleId.toString() } : {}), type: 'parking-pass' }, process.env.JWT_SECRET, { expiresIn: '30d', algorithm: 'HS256' });
     const qrCode = await QRCode.toDataURL(qrData);
     const result = await withReservationTransaction(async (session) => {
       const lockedSlot = await lockSlot(slotId, session);
@@ -153,7 +147,7 @@ export const getReservations = async (req, res) => {
     const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
     const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 10, 1), 100);
     const [reservations, total] = await Promise.all([
-      Reservation.find(filter).sort({ bookingDate: -1, arrivalTime: -1 }).skip((page - 1) * limit).limit(limit).populate('user', 'name email role').populate('slot'),
+      Reservation.find(filter).sort({ bookingDate: -1, arrivalTime: -1 }).skip((page - 1) * limit).limit(limit).populate('user', 'name email role').populate({ path: 'slot', populate: { path: 'parkingArea', select: 'name' } }).populate('vehicle', 'vehicleNumber vehicleType'),
       Reservation.countDocuments(filter)
     ]);
     return sendSuccess(res, reservations, 'Reservations fetched', 200, { page, limit, total, totalPages: Math.ceil(total / limit) });
@@ -221,27 +215,18 @@ export const deleteReservation = async (req, res) => {
 
 export const checkInReservation = async (req, res) => {
   try {
-    const reservation = await Reservation.findOne({ _id: req.params.id, status: { $in: ['pending', 'confirmed'] } }).populate('slot');
-    if (!reservation) return sendError(res, 'Active reservation not found', 404);
-    if (!['admin', 'security'].includes(req.user.role)) return sendError(res, 'Forbidden', 403);
-    if (!isWithinCheckInWindow(reservation)) return sendError(res, 'Check-in is only available during the reservation arrival window', 400);
-    reservation.status = 'checked-in'; reservation.checkedInAt = new Date();
-    await reservation.save();
-    const slot = await syncSlotStatus(reservation.slot._id);
-    emitSlotUpdate(slot);
-    return sendSuccess(res, reservation, 'Checked in successfully');
+    const reservation = await Reservation.findById(req.params.id).select('reservationId');
+    if (!reservation) return sendError(res, 'Reservation not found', 404);
+    req.body = { reservationId: reservation.reservationId };
+    return performSecurityCheckIn(req, res);
   } catch { return sendError(res, 'Unable to check in reservation', 500); }
 };
 
 export const checkOutReservation = async (req, res) => {
   try {
-    const reservation = await Reservation.findOne({ _id: req.params.id, status: 'checked-in' }).populate('slot');
-    if (!reservation) return sendError(res, 'Checked-in reservation not found', 404);
-    if (!['admin', 'security'].includes(req.user.role)) return sendError(res, 'Forbidden', 403);
-    reservation.status = 'checked-out'; reservation.checkedOutAt = new Date();
-    await reservation.save();
-    const slot = await syncSlotStatus(reservation.slot._id);
-    emitSlotUpdate(slot);
-    return sendSuccess(res, reservation, 'Checked out successfully');
+    const reservation = await Reservation.findById(req.params.id).select('reservationId');
+    if (!reservation) return sendError(res, 'Reservation not found', 404);
+    req.body = { reservationId: reservation.reservationId };
+    return performSecurityCheckOut(req, res);
   } catch { return sendError(res, 'Unable to check out reservation', 500); }
 };
