@@ -16,13 +16,13 @@ export const register = async (req, res) => {
       return sendError(res, 'You may register only as a student, lecturer, or staff member', 403);
     }
     const existing = await User.findOne({ email });
-    if (existing) return sendError(res, 'User already exists', 400);
+    if (existing) return sendError(res, 'User already exists', 409);
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await User.create({ name: name.trim(), email: email.trim(), password: hashedPassword, role });
 
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    return sendSuccess(res, { token, user: { id: user._id, name: user.name, email: user.email, role: user.role } }, 'Registration successful');
+    return sendSuccess(res, { token, user: { id: user._id, name: user.name, email: user.email, role: user.role } }, 'Registration successful', 201);
   } catch (error) {
     return sendError(res, error.message, 500);
   }
