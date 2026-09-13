@@ -13,8 +13,11 @@ export const getDashboard = async (req, res) => {
         totalUsers: 0,
         totalAreas: 0,
         totalSlots: 0,
+        activeSlots: 0,
         availableSlots: 0,
         occupiedSlots: 0,
+        reservedSlots: 0,
+        maintenanceSlots: 0,
         todaysReservations: 0,
         monthlyReservations: 0,
         peakParkingHours: []
@@ -29,11 +32,12 @@ export const getDashboard = async (req, res) => {
 
     const { date: startOfDay, nextDate: endOfDay } = campusDateBounds(new Date());
     const startOfMonth = new Date(Date.UTC(startOfDay.getUTCFullYear(), startOfDay.getUTCMonth(), 1));
-    const [availableSlots, occupiedSlots, reservedSlots, maintenanceSlots, todaysReservations, monthlyReservations, peakHours] = await Promise.all([
+    const [activeSlots, availableSlots, occupiedSlots, reservedSlots, maintenanceSlots, todaysReservations, monthlyReservations, peakHours] = await Promise.all([
+      ParkingSlot.countDocuments({ isActive: true }),
       ParkingSlot.countDocuments({ isActive: true, status: 'available' }),
       ParkingSlot.countDocuments({ isActive: true, status: 'occupied' }),
       ParkingSlot.countDocuments({ isActive: true, status: 'reserved' }),
-      ParkingSlot.countDocuments({ status: 'maintenance' }),
+      ParkingSlot.countDocuments({ isActive: true, status: 'maintenance' }),
       Reservation.countDocuments({ bookingDate: { $gte: startOfDay, $lt: endOfDay } }),
       Reservation.countDocuments({ bookingDate: { $gte: startOfMonth } }),
       Reservation.aggregate([
@@ -48,6 +52,7 @@ export const getDashboard = async (req, res) => {
       totalUsers: users,
       totalAreas: areas,
       totalSlots: slots,
+      activeSlots,
       availableSlots,
       occupiedSlots,
       reservedSlots,

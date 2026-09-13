@@ -13,7 +13,7 @@ const getTransport = () => {
 export const sendPasswordResetEmail = async ({ email, token }) => {
   const transport = getTransport();
   if (!transport) return false;
-  const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+  const clientUrl = process.env.CLIENT_URL;
   await transport.sendMail({
     from: process.env.SMTP_FROM,
     to: email,

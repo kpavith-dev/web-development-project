@@ -8,7 +8,8 @@ const requiredEnvVars = [
 ];
 
 export const validateEnvironment = () => {
-  const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+  const requiredForEnvironment = process.env.NODE_ENV === 'production' ? [...requiredEnvVars, 'CLIENT_URL'] : requiredEnvVars;
+  const missingVars = requiredForEnvironment.filter(varName => !process.env[varName]);
 
   if (missingVars.length > 0) {
     logger.error('Missing required environment variables', new Error('Environment validation failed'), {

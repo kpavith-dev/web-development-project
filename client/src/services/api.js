@@ -1,6 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
+  // Production builds receive VITE_API_URL. The combined container uses same-origin /api.
   baseURL: import.meta.env.VITE_API_URL || '/api'
 });
 

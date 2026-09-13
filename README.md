@@ -75,6 +75,21 @@ Reservations may also become `cancelled` or `no-show` after the arrival grace pe
 | `JWT_SECRET` | Yes | Secret used for access tokens and signed QR passes |
 | `CLIENT_URL` | No | Allowed frontend origin; defaults to `http://localhost:5173` |
 | `NODE_ENV` | No | Runtime environment |
+| `VITE_API_URL` | Frontend build | API URL. Use `/api` for the combined Docker deployment, or the public API URL for split hosting. |
+| `VITE_SOCKET_URL` | Frontend build | Socket.IO URL. Leave empty for same-origin Docker hosting, or set the public API origin for split hosting. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | No | SMTP settings for password-reset email delivery |
+
+## Deployment
+
+The included Docker configuration uses one public application container plus a private MongoDB container. Express serves the compiled React single-page application, `/api`, `/uploads`, and Socket.IO from the same origin. This avoids a production dependency on the Vite development proxy.
+
+```text
+Browser ── HTTPS ──> Express + React static files ──> MongoDB (private Docker network)
+   │                         │
+   └──── Socket.IO ──────────┘
+```
+
+For full Docker and external-platform instructions, environment-variable examples, CORS/Socket.IO guidance, health checks, and troubleshooting, see [docs/deployment.md](docs/deployment.md).
 
 ## Validation
 

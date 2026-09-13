@@ -86,7 +86,8 @@ const ReservationsPage = () => {
   }, [form.bookingDate, form.arrivalTime, form.departureTime, form.vehicle, vehicles]);
 
   useEffect(() => {
-    const socket = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000', {
+    const socketUrl = import.meta.env.VITE_SOCKET_URL || (import.meta.env.DEV ? 'http://localhost:5000' : undefined);
+    const socket = io(socketUrl, {
       auth: { token: localStorage.getItem('parking_token') }
     });
     socket.on('slot:updated', loadSlots);

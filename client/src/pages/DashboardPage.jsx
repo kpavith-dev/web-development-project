@@ -56,7 +56,9 @@ const DashboardPage = () => {
     { title: 'Available Slots', value: stats.availableSlots ?? 0, icon: FaCar, accent: 'from-emerald-500 to-green-600' },
     { title: 'Today Reservations', value: stats.todaysReservations ?? reservations.length, icon: FaClock, accent: 'from-amber-500 to-orange-600' }
   ];
-  const utilization = stats.totalSlots ? Math.round(((stats.availableSlots || 0) / stats.totalSlots) * 100) : 0;
+  const activeSlots = stats.activeSlots ?? ((stats.availableSlots || 0) + (stats.occupiedSlots || 0) + (stats.reservedSlots || 0) + (stats.maintenanceSlots || 0));
+  const availability = activeSlots ? Math.round(((stats.availableSlots || 0) / activeSlots) * 100) : 0;
+  const utilization = activeSlots ? Math.round((((stats.occupiedSlots || 0) + (stats.reservedSlots || 0)) / activeSlots) * 100) : 0;
 
   return (
     <div className="space-y-6">
@@ -102,26 +104,37 @@ const DashboardPage = () => {
         <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
           <div className="mb-4 flex items-center gap-2 text-cyan-300">
             <FaCalendarAlt />
-            <h3 className="text-lg font-semibold">Parking utilization</h3>
+            <h3 className="text-lg font-semibold">Current slot status</h3>
           </div>
-          <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-5">
-            <div className="mb-4 flex items-end justify-between">
-              <div>
-                <p className="text-sm text-slate-400">Available slots</p>
-                <p className="text-4xl font-semibold text-white">{utilization}%</p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-5">
+              <div className="mb-4 flex items-end justify-between">
+                <div>
+                  <p className="text-sm text-slate-400">Availability</p>
+                  <p className="text-4xl font-semibold text-white">{availability}%</p>
+                </div>
+                <p className="text-right text-sm text-slate-400">{stats.availableSlots ?? 0} of {activeSlots} active slots</p>
               </div>
-              <div className="text-right text-sm text-slate-400">
-                <p>{stats.availableSlots ?? 0} available</p>
-                <p>{stats.totalSlots ?? 0} total</p>
+              <div className="h-3 overflow-hidden rounded-full bg-slate-800">
+                <div className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-emerald-500" style={{ width: `${availability}%` }} />
               </div>
             </div>
-            <div className="h-3 overflow-hidden rounded-full bg-slate-800">
-              <div className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-emerald-500" style={{ width: `${utilization}%` }} />
+            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-5">
+              <div className="mb-4 flex items-end justify-between">
+                <div>
+                  <p className="text-sm text-slate-400">Utilization</p>
+                  <p className="text-4xl font-semibold text-white">{utilization}%</p>
+                </div>
+                <p className="text-right text-sm text-slate-400">{(stats.occupiedSlots ?? 0) + (stats.reservedSlots ?? 0)} occupied or reserved</p>
+              </div>
+              <div className="h-3 overflow-hidden rounded-full bg-slate-800">
+                <div className="h-full rounded-full bg-gradient-to-r from-violet-500 to-cyan-500" style={{ width: `${utilization}%` }} />
+              </div>
             </div>
-            <div className="mt-4 flex items-center gap-2 text-sm text-slate-400">
-              <FaCheckCircle className="text-emerald-400" />
-              {stats.occupiedSlots ?? 0} slots currently occupied.
-            </div>
+          </div>
+          <div className="mt-4 flex items-center gap-2 text-sm text-slate-400">
+            <FaCheckCircle className="text-emerald-400" />
+            Utilization counts active slots that are occupied or reserved.
           </div>
         </div>
       </div>

@@ -39,6 +39,7 @@ try {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const clientDist = path.join(__dirname, '..', 'client', 'dist');
 fs.mkdirSync(path.join(__dirname, 'uploads', 'vehicles'), { recursive: true });
 
 const app = express();
@@ -53,7 +54,7 @@ app.use(requestLogger);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.get('/api/health', (req, res) => {
-  res.json({ success: true, message: 'Smart Campus Parking API is running.' });
+  res.json({ success: true, service: 'smart-campus-parking-server', database: mongoose.connection.readyState === 1 ? 'connected' : 'unavailable' });
 });
 
 app.get('/api', (req, res) => {
@@ -89,9 +90,16 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/notifications', notificationRoutes);
 
+if (process.env.NODE_ENV === 'production' && fs.existsSync(clientDist)) {
+  app.use(express.static(clientDist));
+  app.get('*', (_req, res) => res.sendFile(path.join(clientDist, 'index.html')));
+}
+
 app.use((err, req, res, next) => {
   logger.error('Unhandled error', err, { path: req.path, method: req.method });
-  res.status(err.status || 500).json({ success: false, message: err.message || 'Server error' });
+  const status = err.status || 500;
+  const message = process.env.NODE_ENV === 'production' && status >= 500 ? 'Server error' : (err.message || 'Server error');
+  res.status(status).json({ success: false, message });
 });
 
 mongoose.set('strictQuery', false);

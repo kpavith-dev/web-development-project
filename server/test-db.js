@@ -7,8 +7,7 @@ console.log("==================================");
 console.log("MongoDB Connection Test");
 console.log("==================================");
 
-console.log("MONGO_URI:");
-console.log(process.env.MONGO_URI);
+console.log("MONGO_URI configured:", Boolean(process.env.MONGO_URI));
 console.log("");
 
 try {
@@ -21,7 +20,6 @@ try {
   console.log("✅ MongoDB Connected Successfully!");
 
   console.log("Database Name:", mongoose.connection.name);
-  console.log("Host:", mongoose.connection.host);
 
   await mongoose.disconnect();
 
@@ -32,10 +30,5 @@ try {
   console.log("");
   console.log("Error Name :", err.name);
   console.log("Error Code :", err.code);
-  console.log("Error Message:");
-  console.log(err.message);
-
-  console.log("");
-  console.log("Full Error:");
-  console.error(err);
+  console.log("Error Message:", err.message.replace(/:\/\/[^@\s]+@/, '://***:***@'));
 }

@@ -1,101 +1,25 @@
-﻿import { useState } from 'react';
-import { FaChartBar, FaClipboardList } from 'react-icons/fa';
+import { useEffect, useState } from 'react';
+import { Bar, Doughnut } from 'react-chartjs-2';
+import { Chart as ChartJS, ArcElement, BarElement, CategoryScale, LinearScale, Legend, Tooltip } from 'chart.js';
+import { FaChartBar, FaDownload, FaFileCsv } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import api from '../services/api';
 
-const reportTypes = [
-  { key: 'daily', label: 'Daily report' },
-  { key: 'weekly', label: 'Weekly report' },
-  { key: 'monthly', label: 'Monthly report' }
-];
+ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Legend, Tooltip);
+const reportTypes = ['daily', 'weekly', 'monthly'];
+const chartOptions = { responsive: true, plugins: { legend: { labels: { color: '#cbd5e1' } } }, scales: { x: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } }, y: { ticks: { color: '#94a3b8', precision: 0 }, grid: { color: '#1e293b' }, beginAtZero: true } } };
 
 const ReportsPage = () => {
-  const [report, setReport] = useState(null);
-  const [loadingType, setLoadingType] = useState('');
-
-  const generateReport = async (type) => {
-    setLoadingType(type);
-    try {
-      const { data } = await api.post('/reports', { type });
-      setReport(data.data || null);
-      toast.success(`${type} report generated.`);
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Unable to generate report.');
-    } finally {
-      setLoadingType('');
-    }
-  };
-
-  return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
-        <div className="flex items-center gap-3">
-          <span className="rounded-xl bg-violet-500/15 p-3 text-violet-300">
-            <FaChartBar />
-          </span>
-          <div>
-            <h1 className="text-xl font-semibold">Analytics reports</h1>
-            <p className="text-sm text-slate-400">Generate parking summaries for daily, weekly, or monthly review.</p>
-          </div>
-        </div>
-
-        <div className="mt-6 grid gap-3 sm:grid-cols-3">
-          {reportTypes.map(({ key, label }) => (
-            <button key={key} onClick={() => generateReport(key)} disabled={loadingType === key} className="rounded-xl border border-slate-700 px-4 py-4 text-left transition hover:border-cyan-500 hover:bg-slate-800 disabled:opacity-60">
-              <p className="font-semibold text-slate-100">{label}</p>
-              <p className="mt-1 text-sm text-slate-400">Generate snapshot</p>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      {report && (
-        <section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
-          <div className="mb-4 flex items-center gap-2 text-cyan-300">
-            <FaClipboardList />
-            <h2 className="text-lg font-semibold">Generated report</h2>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-              <p className="text-sm text-slate-400">Type</p>
-              <p className="mt-1 font-semibold capitalize">{report.type || 'daily'}</p>
-            </div>
-            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-              <p className="text-sm text-slate-400">Generated</p>
-              <p className="mt-1 font-semibold">{new Date(report.generatedAt || Date.now()).toLocaleString()}</p>
-            </div>
-            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-              <p className="text-sm text-slate-400">Summary</p>
-              <p className="mt-1 font-semibold">{report.data?.summary || 'Ready for review'}</p>
-            </div>
-          </div>
-
-          <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <p className="text-sm font-semibold text-slate-200">Report snapshot</p>
-              <span className="text-sm text-slate-400">Live database totals</span>
-            </div>
-            <div className="space-y-3">
-              {Object.entries(report.data?.slots || {}).map(([label, count]) => {
-                return (
-                  <div key={label}>
-                    <div className="mb-1 flex items-center justify-between text-sm text-slate-400">
-                      <span className="capitalize">{label}</span>
-                      <span>{count}</span>
-                    </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-slate-800">
-                      <div className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-violet-500" style={{ width: `${Math.min(100, Number(count) * 10)}%` }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-      )}
-    </div>
-  );
+  const [report, setReport] = useState(null); const [history, setHistory] = useState([]); const [historyMeta, setHistoryMeta] = useState({ page: 1, totalPages: 1 }); const [loading, setLoading] = useState(false); const [type, setType] = useState('daily'); const [dates, setDates] = useState({ startDate: '', endDate: '' });
+  const loadHistory = async (page = 1, append = false) => { try { const { data } = await api.get('/reports', { params: { limit: 10, page } }); setHistory((current) => append ? [...current, ...(data.data || [])] : (data.data || [])); setHistoryMeta(data.pagination || { page: 1, totalPages: 1 }); } catch (error) { toast.error(error.response?.data?.message || 'Unable to load report history.'); } };
+  useEffect(() => { loadHistory(); }, []);
+  const generate = async () => { if ((dates.startDate && !dates.endDate) || (!dates.startDate && dates.endDate)) return toast.info('Provide both custom dates.'); setLoading(true); try { const { data } = await api.post('/reports', { type, ...dates }); setReport(data.data); toast.success('Report generated.'); loadHistory(); } catch (error) { toast.error(error.response?.data?.message || 'Unable to generate report.'); } finally { setLoading(false); } };
+  const exportCsv = () => { if (!report) return; const rows = [['Metric', 'Value'], ...Object.entries(report.summary || {})].map(([key, value]) => [key, value ?? '']); const csv = rows.map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\n'); const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); const link = document.createElement('a'); link.href = url; link.download = `${report.type}-parking-report.csv`; link.click(); URL.revokeObjectURL(url); };
+  const selectHistory = async (item) => { try { const { data } = await api.get(`/reports/${item._id}`); setReport(data.data); } catch { toast.error('Unable to open report.'); } };
+  const summaryCards = report ? [['Reservations', report.summary.totalReservations], ['Completed', report.summary.completed], ['Cancelled', report.summary.cancelled], ['Live utilization', `${report.summary.utilization}%`], ['Available slots', report.summary.availableSlots], ['Peak reservation hour', report.summary.peakReservationHour || '—']] : [];
+  const statusData = report && { labels: Object.keys(report.data.statuses || {}), datasets: [{ data: Object.values(report.data.statuses || {}), backgroundColor: ['#22d3ee', '#34d399', '#fbbf24', '#fb7185', '#94a3b8', '#a78bfa'] }] };
+  const trendData = report && { labels: (report.data.trend || []).map((item) => item.date), datasets: [{ label: 'Reservations', data: (report.data.trend || []).map((item) => item.reservations), backgroundColor: '#06b6d4' }] };
+  const areaData = report && { labels: (report.data.areaUsage || []).map((item) => item.name), datasets: [{ label: 'Reservations by area', data: (report.data.areaUsage || []).map((item) => item.reservations), backgroundColor: '#8b5cf6' }] };
+  return <div className="mx-auto max-w-6xl space-y-6"><section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6"><div className="flex items-center gap-3"><span className="rounded-xl bg-violet-500/15 p-3 text-violet-300"><FaChartBar /></span><div><h1 className="text-xl font-semibold">Analytics reports</h1><p className="text-sm text-slate-400">Live campus metrics and saved report snapshots.</p></div></div><div className="mt-6 grid gap-3 md:grid-cols-4"><select value={type} onChange={(event) => setType(event.target.value)} className="input">{reportTypes.map((item) => <option key={item} value={item}>{item[0].toUpperCase() + item.slice(1)} report</option>)}</select><input type="date" value={dates.startDate} onChange={(event) => setDates({ ...dates, startDate: event.target.value })} className="input" aria-label="Custom range start" /><input type="date" value={dates.endDate} onChange={(event) => setDates({ ...dates, endDate: event.target.value })} className="input" aria-label="Custom range end" /><button disabled={loading} onClick={generate} className="rounded-xl bg-cyan-600 px-4 py-3 font-semibold disabled:opacity-60">{loading ? 'Generating…' : 'Generate report'}</button></div><p className="mt-2 text-xs text-slate-400">Optional custom range: maximum 90 campus days.</p></section>{report && <><section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{summaryCards.map(([label, value]) => <div key={label} className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4"><p className="text-sm text-slate-400">{label}</p><p className="mt-1 text-2xl font-semibold">{value ?? 0}</p></div>)}</section><section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6"><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-semibold capitalize">{report.type} report</h2><p className="text-sm text-slate-400">{report.data?.rangeLabel || 'Saved snapshot'} · {report.data?.definition || ''}</p></div><button onClick={exportCsv} className="flex items-center gap-2 rounded-xl border border-slate-700 px-4 py-2 text-sm text-cyan-300"><FaFileCsv /> Export CSV</button></div><div className="grid gap-6 lg:grid-cols-2">{trendData && <div><h3 className="mb-3 text-sm font-semibold">Reservation trend</h3><Bar data={trendData} options={chartOptions} /></div>}{statusData && <div><h3 className="mb-3 text-sm font-semibold">Status distribution</h3><Doughnut data={statusData} options={{ responsive: true, plugins: { legend: { labels: { color: '#cbd5e1' } } } }} /></div>}{areaData && <div className="lg:col-span-2"><h3 className="mb-3 text-sm font-semibold">Area usage</h3><Bar data={areaData} options={chartOptions} /></div>}</div></section></>}<section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6"><h2 className="text-lg font-semibold">Report history</h2>{history.length ? <div className="mt-4 space-y-2">{history.map((item) => <button onClick={() => selectHistory(item)} key={item._id} className="flex w-full items-center justify-between rounded-xl border border-slate-800 bg-slate-950/70 p-3 text-left hover:border-cyan-500"><span><span className="font-semibold capitalize">{item.type}</span><span className="ml-2 text-sm text-slate-400">{item.summary?.totalReservations ?? 0} reservations</span></span><span className="text-xs text-slate-400">{new Date(item.generatedAt).toLocaleString()}</span></button>)}</div> : <p className="mt-4 text-sm text-slate-400">No reports have been generated yet.</p>}{historyMeta.page < historyMeta.totalPages && <button onClick={() => loadHistory(historyMeta.page + 1, true)} className="mt-4 rounded-xl border border-slate-700 px-4 py-2 text-sm text-cyan-300">Load more reports</button>}</section></div>;
 };
-
 export default ReportsPage;
