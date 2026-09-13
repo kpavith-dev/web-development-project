@@ -4,6 +4,7 @@ import ParkingArea from '../models/ParkingArea.js';
 import Reservation from '../models/Reservation.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 import { emitSlotUpdate } from '../socket.js';
+import { campusDateBounds } from '../utils/campusTime.js';
 
 export const getSlots = async (req, res) => {
   try {
@@ -14,16 +15,15 @@ export const getSlots = async (req, res) => {
     const { date, arrivalTime, departureTime, vehicleType } = req.query;
     let unavailableIds = [];
     if (date || arrivalTime || departureTime) {
-      const start = new Date(date);
-      if (Number.isNaN(start.getTime()) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(arrivalTime || '') || !/^([01]\d|2[0-3]):[0-5]\d$/.test(departureTime || '') || arrivalTime >= departureTime) {
+      const bounds = campusDateBounds(date);
+      if (!bounds || !/^([01]\d|2[0-3]):[0-5]\d$/.test(arrivalTime || '') || !/^([01]\d|2[0-3]):[0-5]\d$/.test(departureTime || '') || arrivalTime >= departureTime) {
         return sendError(res, 'date, arrivalTime, and departureTime must be valid when filtering availability', 400);
       }
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(start); end.setDate(end.getDate() + 1);
-      const reservations = await Reservation.find({ bookingDate: { $gte: start, $lt: end }, status: { $in: ['pending', 'confirmed', 'checked-in'] }, arrivalTime: { $lt: departureTime }, departureTime: { $gt: arrivalTime } }).select('slot');
+      const reservations = await Reservation.find({ bookingDate: { $gte: bounds.date, $lt: bounds.nextDate }, status: { $in: ['pending', 'confirmed', 'checked-in'] }, arrivalTime: { $lt: departureTime }, departureTime: { $gt: arrivalTime } }).select('slot');
       unavailableIds = reservations.map(({ slot }) => slot);
     }
-    const filter = { isActive: true, status: { $ne: 'maintenance' }, _id: { $nin: unavailableIds } };
+    const activeAreas = await ParkingArea.find({ isActive: true }).select('_id');
+    const filter = { isActive: true, parkingArea: { $in: activeAreas.map((area) => area._id) }, status: { $ne: 'maintenance' }, _id: { $nin: unavailableIds } };
     if (vehicleType) filter.vehicleTypeAllowed = vehicleType;
     const slots = await ParkingSlot.find(filter).populate('parkingArea');
     return sendSuccess(res, slots, 'Parking slots fetched');
@@ -66,7 +66,12 @@ export const updateSlot = async (req, res) => {
       const count = await ParkingSlot.countDocuments({ parkingArea: area._id });
       if (count >= area.totalSlots) return sendError(res, 'The destination area has reached its configured capacity', 409);
     }
-    const slot = await ParkingSlot.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const fields = ['slotNumber', 'parkingArea', 'vehicleTypeAllowed', 'status', 'isActive'];
+    const payload = fields.reduce((result, field) => {
+      if (req.body[field] !== undefined) result[field] = req.body[field];
+      return result;
+    }, {});
+    const slot = await ParkingSlot.findByIdAndUpdate(req.params.id, payload, { new: true, runValidators: true });
     if (slot) emitSlotUpdate(slot);
     return sendSuccess(res, slot, 'Parking slot updated');
   } catch (error) {

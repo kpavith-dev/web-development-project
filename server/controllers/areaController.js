@@ -28,7 +28,12 @@ export const getAreas = async (req, res) => {
 
 export const createArea = async (req, res) => {
   try {
-    const area = await ParkingArea.create(req.body);
+    const fields = ['name', 'description', 'totalSlots', 'openingTime', 'closingTime', 'isActive'];
+    const payload = fields.reduce((result, field) => {
+      if (req.body[field] !== undefined) result[field] = req.body[field];
+      return result;
+    }, {});
+    const area = await ParkingArea.create(payload);
     return sendSuccess(res, area, 'Parking area created', 201);
   } catch (error) {
     return sendError(res, error.message, 500);
@@ -37,11 +42,21 @@ export const createArea = async (req, res) => {
 
 export const updateArea = async (req, res) => {
   try {
+    const existing = await ParkingArea.findById(req.params.id);
+    if (!existing) return sendError(res, 'Parking area not found', 404);
     if (req.body.totalSlots !== undefined) {
       const slotCount = await ParkingSlot.countDocuments({ parkingArea: req.params.id });
       if (Number(req.body.totalSlots) < slotCount) return sendError(res, `Capacity cannot be below the ${slotCount} existing slots`, 400);
     }
-    const area = await ParkingArea.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const openingTime = req.body.openingTime ?? existing.openingTime;
+    const closingTime = req.body.closingTime ?? existing.closingTime;
+    if (closingTime <= openingTime) return sendError(res, 'Closing time must be after opening time', 400);
+    const fields = ['name', 'description', 'totalSlots', 'openingTime', 'closingTime', 'isActive'];
+    const payload = fields.reduce((result, field) => {
+      if (req.body[field] !== undefined) result[field] = req.body[field];
+      return result;
+    }, {});
+    const area = await ParkingArea.findByIdAndUpdate(req.params.id, payload, { new: true, runValidators: true });
     return sendSuccess(res, area, 'Parking area updated');
   } catch (error) {
     return sendError(res, error.message, 500);

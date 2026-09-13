@@ -3,8 +3,9 @@ import { FaCalendarPlus, FaQrcode, FaTimes } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { io } from 'socket.io-client';
 import api from '../services/api';
+import { campusDateKey } from '../utils/campusTime';
 
-const todayString = () => new Date().toISOString().slice(0, 10);
+const todayString = () => campusDateKey();
 
 const initialForm = () => ({
   slot: '',
@@ -84,7 +85,7 @@ const ReservationsPage = () => {
     });
     socket.on('slot:updated', loadSlots);
     return () => socket.disconnect();
-  }, [form.bookingDate, form.arrivalTime, form.departureTime]);
+  }, [form.bookingDate, form.arrivalTime, form.departureTime, form.vehicle, vehicles]);
 
   const reserve = async (event) => {
     event.preventDefault();

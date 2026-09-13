@@ -4,6 +4,7 @@ import SecurityLog from '../models/SecurityLog.js';
 import { emitSlotUpdate } from '../socket.js';
 import { syncSlotStatus } from '../services/slotStatus.js';
 import { sendSuccess, sendError } from '../utils/response.js';
+import { campusDateKey, campusDateTime } from '../utils/campusTime.js';
 
 const getReservationFromRequest = async (req) => {
   const { reservationId, qrData } = req.body;
@@ -27,14 +28,10 @@ const getReservationFromRequest = async (req) => {
 };
 
 const isWithinArrivalWindow = (reservation, now) => {
-  const bookingDate = new Date(reservation.bookingDate);
-  if (bookingDate.toDateString() !== now.toDateString()) return false;
-  const [arrivalHour, arrivalMinute] = reservation.arrivalTime.split(':').map(Number);
-  const arrival = new Date(bookingDate);
-  arrival.setHours(arrivalHour, arrivalMinute, 0, 0);
-  const [departureHour, departureMinute] = reservation.departureTime.split(':').map(Number);
-  const departure = new Date(bookingDate);
-  departure.setHours(departureHour, departureMinute, 0, 0);
+  if (campusDateKey(reservation.bookingDate) !== campusDateKey(now)) return false;
+  const arrival = campusDateTime(reservation.bookingDate, reservation.arrivalTime);
+  const departure = campusDateTime(reservation.bookingDate, reservation.departureTime);
+  if (!arrival || !departure) return false;
   return now >= arrival && now <= new Date(arrival.getTime() + reservation.gracePeriodMinutes * 60 * 1000) && now <= departure;
 };
 

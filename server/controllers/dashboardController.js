@@ -4,6 +4,7 @@ import ParkingArea from '../models/ParkingArea.js';
 import ParkingSlot from '../models/ParkingSlot.js';
 import User from '../models/User.js';
 import { sendSuccess, sendError } from '../utils/response.js';
+import { campusDateBounds } from '../utils/campusTime.js';
 
 export const getDashboard = async (req, res) => {
   try {
@@ -26,15 +27,14 @@ export const getDashboard = async (req, res) => {
       ParkingSlot.countDocuments()
     ]);
 
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
-    const startOfMonth = new Date(startOfDay.getFullYear(), startOfDay.getMonth(), 1);
+    const { date: startOfDay, nextDate: endOfDay } = campusDateBounds(new Date());
+    const startOfMonth = new Date(Date.UTC(startOfDay.getUTCFullYear(), startOfDay.getUTCMonth(), 1));
     const [availableSlots, occupiedSlots, reservedSlots, maintenanceSlots, todaysReservations, monthlyReservations, peakHours] = await Promise.all([
       ParkingSlot.countDocuments({ isActive: true, status: 'available' }),
       ParkingSlot.countDocuments({ isActive: true, status: 'occupied' }),
       ParkingSlot.countDocuments({ isActive: true, status: 'reserved' }),
       ParkingSlot.countDocuments({ status: 'maintenance' }),
-      Reservation.countDocuments({ bookingDate: { $gte: startOfDay, $lt: new Date(startOfDay.getTime() + 86400000) } }),
+      Reservation.countDocuments({ bookingDate: { $gte: startOfDay, $lt: endOfDay } }),
       Reservation.countDocuments({ bookingDate: { $gte: startOfMonth } }),
       Reservation.aggregate([
         { $match: { bookingDate: { $gte: startOfMonth }, status: { $nin: ['cancelled'] } } },

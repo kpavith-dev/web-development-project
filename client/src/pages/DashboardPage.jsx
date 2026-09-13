@@ -2,6 +2,7 @@
 import { toast } from 'react-toastify';
 import { FaCar, FaMapMarkedAlt, FaUser, FaClock, FaCheckCircle, FaCalendarAlt } from 'react-icons/fa';
 import api from '../services/api';
+import { campusDateKey } from '../utils/campusTime';
 
 const statusStyles = {
   pending: 'bg-amber-500/15 text-amber-300',
@@ -25,7 +26,7 @@ const DashboardPage = () => {
           api.get('/reservations')
         ]);
         setDashboard(dashboardRes.data.data || null);
-        const today = new Date().toISOString().slice(0, 10);
+        const today = campusDateKey();
         setReservations((reservationsRes.data.data || []).filter((item) => item.bookingDate?.slice(0, 10) === today));
       } catch (error) {
         toast.error(error.response?.data?.message || 'Unable to load dashboard data.');

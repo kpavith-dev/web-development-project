@@ -8,7 +8,7 @@ export const handleValidationErrors = (req, res, next) => {
       success: false,
       message: 'Validation failed',
       errors: errors.array().map(err => ({
-        field: err.path || err.param || 'field',
+        field: err.param,
         message: err.msg
       }))
     });
@@ -30,7 +30,7 @@ export const validateRegister = [
     .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/).withMessage('Password must contain uppercase, lowercase, and numbers'),
   body('role')
     .optional()
-    .isIn(['student', 'lecturer', 'staff']).withMessage('Role must be student, lecturer, or staff'),
+    .isIn(['student', 'staff']).withMessage('Role must be student or staff'),
 ];
 
 export const validateLogin = [
@@ -86,11 +86,17 @@ export const validateSlot = [
     .notEmpty().withMessage('Slot number is required')
     .trim(),
   body('parkingArea')
-    .notEmpty().withMessage('Parking area ID is required')
+    .notEmpty().withMessage('Area ID is required')
     .isMongoId().withMessage('Invalid area ID'),
   body('vehicleTypeAllowed')
+    .notEmpty().withMessage('Slot type is required')
+    .isIn(['car', 'motorcycle', 'bicycle', 'ev']).withMessage('Invalid vehicle type'),
+  body('status')
     .optional()
-    .isIn(['car', 'motorcycle', 'bicycle', 'ev']).withMessage('Invalid vehicle type allowed'),
+    .isIn(['available', 'reserved', 'occupied', 'maintenance']).withMessage('Invalid slot status'),
+  body('isActive')
+    .optional()
+    .isBoolean().withMessage('isActive must be true or false'),
 ];
 
 // Parking area validation
@@ -99,8 +105,54 @@ export const validateArea = [
     .notEmpty().withMessage('Area name is required')
     .trim()
     .isLength({ min: 2, max: 100 }).withMessage('Area name must be between 2 and 100 characters'),
+  body('description')
+    .optional()
+    .trim()
+    .isLength({ max: 500 }).withMessage('Description must be 500 characters or fewer'),
   body('totalSlots')
     .isInt({ min: 1 }).withMessage('Total slots must be a positive number'),
+  body('openingTime')
+    .matches(/^([01]\d|2[0-3]):[0-5]\d$/).withMessage('Opening time must use HH:mm format'),
+  body('closingTime')
+    .matches(/^([01]\d|2[0-3]):[0-5]\d$/).withMessage('Closing time must use HH:mm format')
+    .custom((value, { req }) => {
+      if (req.body.openingTime && value <= req.body.openingTime) {
+        throw new Error('Closing time must be after opening time');
+      }
+      return true;
+    }),
+  body('isActive')
+    .optional()
+    .isBoolean().withMessage('isActive must be true or false'),
+];
+
+export const validateAreaUpdate = [
+  body('name')
+    .optional()
+    .trim()
+    .isLength({ min: 2, max: 100 }).withMessage('Name must be between 2 and 100 characters'),
+  body('description')
+    .optional()
+    .trim()
+    .isLength({ max: 500 }).withMessage('Description must be 500 characters or fewer'),
+  body('totalSlots')
+    .optional()
+    .isInt({ min: 1 }).withMessage('Total slots must be a positive number'),
+  body('openingTime')
+    .optional()
+    .matches(/^([01]\d|2[0-3]):[0-5]\d$/).withMessage('Opening time must use HH:mm format'),
+  body('closingTime')
+    .optional()
+    .matches(/^([01]\d|2[0-3]):[0-5]\d$/).withMessage('Closing time must use HH:mm format')
+    .custom((value, { req }) => {
+      if (req.body.openingTime && value <= req.body.openingTime) {
+        throw new Error('Closing time must be after opening time');
+      }
+      return true;
+    }),
+  body('isActive')
+    .optional()
+    .isBoolean().withMessage('isActive must be true or false'),
 ];
 
 // ID validation for mongo documents

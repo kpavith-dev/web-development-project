@@ -2,6 +2,7 @@
 import { FaQrcode, FaSignInAlt, FaSignOutAlt } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import api from '../services/api';
+import { campusDateKey } from '../utils/campusTime';
 
 const SecurityPage = () => {
   const [reservationId, setReservationId] = useState('');
@@ -13,7 +14,7 @@ const SecurityPage = () => {
   const loadReservations = async () => {
     try {
       const { data } = await api.get('/reservations');
-      const today = new Date().toISOString().slice(0, 10);
+      const today = campusDateKey();
       setReservations((data.data || []).filter((item) => item.bookingDate?.slice(0, 10) === today));
     } catch (error) {
       toast.error(error.response?.data?.message || 'Unable to load today\'s reservations.');

@@ -4,7 +4,7 @@ import { toast } from 'react-toastify';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
-const emptyArea = { name: '', description: '', totalSlots: '' };
+const emptyArea = { name: '', description: '', totalSlots: '', openingTime: '08:00', closingTime: '18:00', isActive: true };
 
 const AreasPage = () => {
   const { user } = useAuth();
@@ -41,7 +41,10 @@ const AreasPage = () => {
     setForm({
       name: area.name || '',
       description: area.description || '',
-      totalSlots: area.totalSlots ?? ''
+      totalSlots: area.totalSlots ?? '',
+      openingTime: area.openingTime || '08:00',
+      closingTime: area.closingTime || '18:00',
+      isActive: area.isActive !== false
     });
     setModalOpen(true);
   };
@@ -153,6 +156,11 @@ const AreasPage = () => {
               <input required placeholder="Area name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className="input" />
               <textarea placeholder="Description" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className="input min-h-[100px]" />
               <input required min="1" type="number" placeholder="Total slots" value={form.totalSlots} onChange={(event) => setForm({ ...form, totalSlots: event.target.value })} className="input" />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="text-sm text-slate-300">Opening time<input required type="time" value={form.openingTime} onChange={(event) => setForm({ ...form, openingTime: event.target.value })} className="input mt-2" /></label>
+                <label className="text-sm text-slate-300">Closing time<input required type="time" value={form.closingTime} onChange={(event) => setForm({ ...form, closingTime: event.target.value })} className="input mt-2" /></label>
+              </div>
+              <label className="flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" checked={form.isActive} onChange={(event) => setForm({ ...form, isActive: event.target.checked })} /> Area is active</label>
               <div className="flex justify-end gap-3">
                 <button type="button" onClick={() => setModalOpen(false)} className="rounded-xl border border-slate-700 px-4 py-2 text-slate-300">Cancel</button>
                 <button type="submit" className="rounded-xl bg-cyan-600 px-4 py-2 font-semibold text-white">Save</button>

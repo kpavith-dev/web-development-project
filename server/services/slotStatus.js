@@ -1,5 +1,6 @@
 import Reservation from '../models/Reservation.js';
 import ParkingSlot from '../models/ParkingSlot.js';
+import { campusDateBounds, campusTime } from '../utils/campusTime.js';
 
 const ACTIVE_STATUSES = ['pending', 'confirmed', 'checked-in'];
 
@@ -7,13 +8,13 @@ export const syncSlotStatus = async (slotId) => {
   const slot = await ParkingSlot.findById(slotId);
   if (!slot || slot.status === 'maintenance') return slot;
 
-  const checkedIn = await Reservation.exists({ slot: slotId, status: 'checked-in' });
-  const now = new Date();
-  const startOfDay = new Date(now);
-  startOfDay.setHours(0, 0, 0, 0);
-  const endOfDay = new Date(startOfDay);
-  endOfDay.setDate(endOfDay.getDate() + 1);
-  const currentTime = now.toTimeString().slice(0, 5);
+  const { date: startOfDay, nextDate: endOfDay } = campusDateBounds(new Date());
+  const currentTime = campusTime();
+  const checkedIn = await Reservation.exists({
+    slot: slotId,
+    bookingDate: { $gte: startOfDay, $lt: endOfDay },
+    status: 'checked-in'
+  });
   // A slot's live state must not be held as reserved by a booking on another day.
   const reserved = await Reservation.exists({
     slot: slotId,

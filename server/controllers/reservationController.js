@@ -9,44 +9,51 @@ import QRCode from 'qrcode';
 import { sendSuccess, sendError } from '../utils/response.js';
 import { emitSlotUpdate } from '../socket.js';
 import { syncSlotStatus } from '../services/slotStatus.js';
+import { campusDateBounds, campusDateKey, campusDateTime } from '../utils/campusTime.js';
 
 const ACTIVE_STATUSES = ['pending', 'confirmed', 'checked-in'];
-const dateBounds = (value) => {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  date.setHours(0, 0, 0, 0);
-  const nextDate = new Date(date);
-  nextDate.setDate(nextDate.getDate() + 1);
-  return { date, nextDate };
-};
-
 const validTimeRange = (arrivalTime, departureTime) => (
   /^([01]\d|2[0-3]):[0-5]\d$/.test(arrivalTime || '')
   && /^([01]\d|2[0-3]):[0-5]\d$/.test(departureTime || '')
   && arrivalTime < departureTime
 );
 const arrivalDeadline = (bookingDate, arrivalTime, gracePeriodMinutes = 15) => {
-  const deadline = new Date(bookingDate);
-  const [hour, minute] = arrivalTime.split(':').map(Number);
-  deadline.setHours(hour, minute + gracePeriodMinutes, 0, 0);
-  return deadline;
+  const arrival = campusDateTime(bookingDate, arrivalTime);
+  return arrival ? new Date(arrival.getTime() + gracePeriodMinutes * 60 * 1000) : null;
 };
 const isWithinOperatingHours = (area, arrivalTime, departureTime) => (
   arrivalTime >= area.openingTime && departureTime <= area.closingTime
 );
+const isWithinCheckInWindow = (reservation, now = new Date()) => {
+  if (campusDateKey(reservation.bookingDate) !== campusDateKey(now)) return false;
+  const arrival = campusDateTime(reservation.bookingDate, reservation.arrivalTime);
+  const departure = campusDateTime(reservation.bookingDate, reservation.departureTime);
+  return Boolean(arrival && departure && now >= arrival && now <= departure && now <= new Date(arrival.getTime() + reservation.gracePeriodMinutes * 60 * 1000));
+};
 
-const validateBooking = async ({ slotId, vehicleId, bookingDate, arrivalTime, departureTime, userId, excludeId }) => {
-  const bounds = dateBounds(bookingDate);
+const validateBooking = async ({ slotId, vehicleId, bookingDate, arrivalTime, departureTime, userId, excludeId, session }) => {
+  const bounds = campusDateBounds(bookingDate);
   if (!slotId || !bounds || !validTimeRange(arrivalTime, departureTime)) return { error: 'Provide a slot, a valid booking date, and an arrival time before departure time' };
-  if (bounds.date < new Date(new Date().setHours(0, 0, 0, 0))) return { error: 'Reservations cannot be made in the past' };
+  if (!mongoose.isValidObjectId(slotId)) return { error: 'Selected parking slot ID is invalid' };
+  if (vehicleId && !mongoose.isValidObjectId(vehicleId)) return { error: 'Selected vehicle ID is invalid' };
+  if (bounds.date < campusDateBounds(new Date()).date) return { error: 'Reservations cannot be made in the past' };
+  if (bounds.date.getTime() === campusDateBounds(new Date()).date.getTime() && campusDateTime(bounds.date, arrivalTime) <= new Date()) {
+    return { error: 'Arrival time must be in the future for today\'s reservation' };
+  }
 
-  const slot = await ParkingSlot.findById(slotId).populate('parkingArea');
-  if (!slot || !slot.isActive || slot.status === 'maintenance' || !slot.parkingArea?.isActive || slot.parkingArea.status !== 'active') return { error: 'This parking slot is unavailable' };
-  if (!isWithinOperatingHours(slot.parkingArea, arrivalTime, departureTime)) return { error: `Reservations for this area are available from ${slot.parkingArea.openingTime} to ${slot.parkingArea.closingTime}` };
+  const slot = await ParkingSlot.findById(slotId).session(session || null).populate('parkingArea');
+  if (!slot) return { error: 'Selected parking slot was not found' };
+  if (!slot.isActive) return { error: 'Selected parking slot is inactive' };
+  if (slot.status === 'maintenance') return { error: 'Selected parking slot is under maintenance' };
+  if (!slot.parkingArea) return { error: 'Parking area for the selected slot was not found' };
+  if (!slot.parkingArea.isActive) return { error: 'Parking area is inactive' };
+  if (!isWithinOperatingHours(slot.parkingArea, arrivalTime, departureTime)) return { error: 'Parking area is closed at the selected time' };
 
   if (vehicleId) {
-    const vehicle = await Vehicle.findOne({ _id: vehicleId, user: userId, isActive: true, verificationStatus: 'verified' });
-    if (!vehicle) return { error: 'Choose one of your verified active vehicles' };
+    const vehicle = await Vehicle.findOne({ _id: vehicleId, user: userId }).session(session || null);
+    if (!vehicle) return { error: 'Selected vehicle was not found for your account' };
+    if (!vehicle.isActive) return { error: 'Selected vehicle is inactive' };
+    if (vehicle.verificationStatus !== 'verified') return { error: 'Selected vehicle is not verified' };
     if (vehicle.vehicleType !== slot.vehicleTypeAllowed) return { error: `This slot is available for ${slot.vehicleTypeAllowed} vehicles only` };
   }
 
@@ -58,13 +65,39 @@ const validateBooking = async ({ slotId, vehicleId, bookingDate, arrivalTime, de
     departureTime: { $gt: arrivalTime }
   };
   if (excludeId) overlapBase._id = { $ne: excludeId };
-  if (await Reservation.exists(overlapBase)) return { error: 'This slot is already reserved for the selected time', status: 409 };
+  if (await Reservation.exists(overlapBase).session(session || null)) return { error: 'Another reservation overlaps this time', status: 409 };
 
   const userOverlap = { ...overlapBase, user: userId };
   delete userOverlap.slot;
-  if (await Reservation.exists(userOverlap)) return { error: 'You already have an active reservation during that time' };
+  if (await Reservation.exists(userOverlap).session(session || null)) return { error: 'You already have an active reservation during that time', status: 409 };
   return { bounds, slot };
 };
+
+const withReservationTransaction = async (work) => {
+  const session = await mongoose.startSession();
+  try {
+    let result;
+    await session.withTransaction(async () => {
+      result = await work(session);
+      if (result?.error) throw Object.assign(new Error(result.error), { reservationError: result });
+    });
+    return result;
+  } catch (error) {
+    if (error.reservationError) return error.reservationError;
+    if (/Transaction numbers are only allowed|replica set|transaction/i.test(error.message)) {
+      return { error: 'Reservation changes require MongoDB transactions. Configure MongoDB as a replica set.', status: 503 };
+    }
+    throw error;
+  } finally {
+    await session.endSession();
+  }
+};
+
+const lockSlot = async (slotId, session) => ParkingSlot.findByIdAndUpdate(
+  slotId,
+  { $set: { updatedAt: new Date() } },
+  { new: true, session, timestamps: false }
+);
 
 export const createReservation = async (req, res) => {
   try {
@@ -73,31 +106,40 @@ export const createReservation = async (req, res) => {
     }
 
     const { slot: slotId, vehicle: vehicleId, bookingDate, arrivalTime, departureTime } = req.body;
-    const validation = await validateBooking({ slotId, vehicleId, bookingDate, arrivalTime, departureTime, userId: req.user._id });
-    if (validation.error) return sendError(res, validation.error, validation.status || 400);
-    const { bounds } = validation;
+    if (!mongoose.isValidObjectId(slotId)) return sendError(res, 'Selected parking slot ID is invalid', 400);
     const reservationId = `RES-${crypto.randomUUID()}`;
     const qrData = jwt.sign({ reservationId, userId: req.user._id.toString(), type: 'parking-pass' }, process.env.JWT_SECRET, { expiresIn: '30d' });
     const qrCode = await QRCode.toDataURL(qrData);
-
-    const reservation = await Reservation.create({
-      slot: slotId,
-      vehicle: vehicleId || undefined,
-      bookingDate: bounds.date,
-      arrivalTime,
-      departureTime,
-      user: req.user._id,
-      reservationId,
-      qrCode,
-      expiresAt: arrivalDeadline(bounds.date, arrivalTime)
+    const result = await withReservationTransaction(async (session) => {
+      const lockedSlot = await lockSlot(slotId, session);
+      if (!lockedSlot) return { error: 'Selected parking slot was not found', status: 404 };
+      const validation = await validateBooking({ slotId, vehicleId, bookingDate, arrivalTime, departureTime, userId: req.user._id, session });
+      if (validation.error) return validation;
+      const reservation = new Reservation({
+        slot: slotId,
+        vehicle: vehicleId || undefined,
+        bookingDate: validation.bounds.date,
+        arrivalTime,
+        departureTime,
+        user: req.user._id,
+        reservationId,
+        qrCode,
+        expiresAt: arrivalDeadline(validation.bounds.date, arrivalTime)
+      });
+      await reservation.save({ session });
+      await Notification.create([{
+        user: req.user._id,
+        title: 'Reservation created',
+        message: `Your reservation for ${campusDateKey(validation.bounds.date)} at ${arrivalTime} has been created.`,
+        type: 'reservation-created'
+      }], { session });
+      return { reservation };
     });
-
+    if (result.error) return sendError(res, result.error, result.status || 400);
     emitSlotUpdate(await syncSlotStatus(slotId));
-    await Notification.create({ user: req.user._id, title: 'Reservation created', message: `Your reservation for ${bookingDate} at ${arrivalTime} has been created.`, type: 'reservation-created' });
-
-    return sendSuccess(res, reservation, 'Reservation created', 201);
+    return sendSuccess(res, result.reservation, 'Reservation created', 201);
   } catch (error) {
-    return sendError(res, error.message, 500);
+    return sendError(res, 'Unable to create reservation', 500);
   }
 };
 
@@ -116,31 +158,48 @@ export const getReservations = async (req, res) => {
     ]);
     return sendSuccess(res, reservations, 'Reservations fetched', 200, { page, limit, total, totalPages: Math.ceil(total / limit) });
   } catch (error) {
-    return sendError(res, error.message, 500);
+    return sendError(res, 'Unable to fetch reservations', 500);
   }
 };
 
 export const updateReservation = async (req, res) => {
   try {
-    const reservation = await Reservation.findById(req.params.id);
-    if (!reservation) return sendError(res, 'Reservation not found', 404);
-    if (reservation.user.toString() !== req.user._id.toString() && !['admin', 'security'].includes(req.user.role)) return sendError(res, 'Forbidden', 403);
-    if (['checked-in', 'checked-out'].includes(reservation.status)) return sendError(res, 'Completed reservations cannot be edited', 400);
-    const allowed = ['arrivalTime', 'departureTime', 'bookingDate', 'vehicle'];
-    const next = { slotId: reservation.slot.toString(), vehicleId: reservation.vehicle?.toString(), bookingDate: reservation.bookingDate, arrivalTime: reservation.arrivalTime, departureTime: reservation.departureTime };
-    allowed.forEach((field) => { if (req.body[field] !== undefined) reservation[field] = req.body[field]; });
-    if (req.body.bookingDate !== undefined) next.bookingDate = req.body.bookingDate;
-    if (req.body.arrivalTime !== undefined) next.arrivalTime = req.body.arrivalTime;
-    if (req.body.departureTime !== undefined) next.departureTime = req.body.departureTime;
-    if (req.body.vehicle !== undefined) next.vehicleId = req.body.vehicle;
-    const validation = await validateBooking({ ...next, userId: reservation.user, excludeId: reservation._id });
-    if (validation.error) return sendError(res, validation.error, validation.status || 400);
-    reservation.bookingDate = validation.bounds.date;
-    await reservation.save();
-    emitSlotUpdate(await syncSlotStatus(reservation.slot));
-    return sendSuccess(res, reservation, 'Reservation updated');
+    if (req.body.slot !== undefined && !mongoose.isValidObjectId(req.body.slot)) return sendError(res, 'Selected parking slot ID is invalid', 400);
+    if (req.body.vehicle && !mongoose.isValidObjectId(req.body.vehicle)) return sendError(res, 'Selected vehicle ID is invalid', 400);
+    const result = await withReservationTransaction(async (session) => {
+      const reservation = await Reservation.findById(req.params.id).session(session);
+      if (!reservation) return { error: 'Reservation not found', status: 404 };
+      if (reservation.user.toString() !== req.user._id.toString() && !['admin', 'security'].includes(req.user.role)) return { error: 'Forbidden', status: 403 };
+      if (!['pending', 'confirmed'].includes(reservation.status)) return { error: 'Only pending or confirmed reservations can be edited', status: 400 };
+
+      const next = {
+        slotId: req.body.slot ?? reservation.slot.toString(),
+        vehicleId: req.body.vehicle ?? reservation.vehicle?.toString(),
+        bookingDate: req.body.bookingDate ?? reservation.bookingDate,
+        arrivalTime: req.body.arrivalTime ?? reservation.arrivalTime,
+        departureTime: req.body.departureTime ?? reservation.departureTime
+      };
+      const lockedSlot = await lockSlot(next.slotId, session);
+      if (!lockedSlot) return { error: 'Selected parking slot was not found', status: 404 };
+      const validation = await validateBooking({ ...next, userId: reservation.user, excludeId: reservation._id, session });
+      if (validation.error) return validation;
+
+      const oldSlotId = reservation.slot.toString();
+      reservation.slot = next.slotId;
+      reservation.vehicle = next.vehicleId || undefined;
+      reservation.bookingDate = validation.bounds.date;
+      reservation.arrivalTime = next.arrivalTime;
+      reservation.departureTime = next.departureTime;
+      reservation.expiresAt = arrivalDeadline(validation.bounds.date, next.arrivalTime, reservation.gracePeriodMinutes);
+      await reservation.save({ session });
+      return { reservation, oldSlotId, slotId: next.slotId };
+    });
+    if (result.error) return sendError(res, result.error, result.status || 400);
+    const slotIds = [...new Set([result.oldSlotId, result.slotId])];
+    await Promise.all(slotIds.map(async (slotId) => emitSlotUpdate(await syncSlotStatus(slotId))));
+    return sendSuccess(res, result.reservation, 'Reservation updated');
   } catch (error) {
-    return sendError(res, error.message, 500);
+    return sendError(res, 'Unable to update reservation', 500);
   }
 };
 
@@ -149,13 +208,14 @@ export const deleteReservation = async (req, res) => {
     const reservation = await Reservation.findById(req.params.id);
     if (!reservation) return sendError(res, 'Reservation not found', 404);
     if (reservation.user.toString() !== req.user._id.toString() && req.user.role !== 'admin') return sendError(res, 'Forbidden', 403);
-    if (['checked-in', 'checked-out'].includes(reservation.status)) return sendError(res, 'A checked-in reservation cannot be cancelled', 400);
+    if (!['pending', 'confirmed'].includes(reservation.status)) return sendError(res, 'Only pending or confirmed reservations can be cancelled', 400);
     reservation.status = 'cancelled';
     await reservation.save();
     emitSlotUpdate(await syncSlotStatus(reservation.slot));
+    await Notification.create({ user: reservation.user, title: 'Reservation cancelled', message: `Your reservation ${reservation.reservationId} has been cancelled.`, type: 'reservation-cancelled' });
     return sendSuccess(res, reservation, 'Reservation cancelled');
   } catch (error) {
-    return sendError(res, error.message, 500);
+    return sendError(res, 'Unable to cancel reservation', 500);
   }
 };
 
@@ -163,24 +223,25 @@ export const checkInReservation = async (req, res) => {
   try {
     const reservation = await Reservation.findOne({ _id: req.params.id, status: { $in: ['pending', 'confirmed'] } }).populate('slot');
     if (!reservation) return sendError(res, 'Active reservation not found', 404);
-    if (reservation.user.toString() !== req.user._id.toString() && !['admin', 'security'].includes(req.user.role)) return sendError(res, 'Forbidden', 403);
+    if (!['admin', 'security'].includes(req.user.role)) return sendError(res, 'Forbidden', 403);
+    if (!isWithinCheckInWindow(reservation)) return sendError(res, 'Check-in is only available during the reservation arrival window', 400);
     reservation.status = 'checked-in'; reservation.checkedInAt = new Date();
     await reservation.save();
     const slot = await syncSlotStatus(reservation.slot._id);
     emitSlotUpdate(slot);
     return sendSuccess(res, reservation, 'Checked in successfully');
-  } catch (error) { return sendError(res, error.message, 500); }
+  } catch { return sendError(res, 'Unable to check in reservation', 500); }
 };
 
 export const checkOutReservation = async (req, res) => {
   try {
     const reservation = await Reservation.findOne({ _id: req.params.id, status: 'checked-in' }).populate('slot');
     if (!reservation) return sendError(res, 'Checked-in reservation not found', 404);
-    if (reservation.user.toString() !== req.user._id.toString() && !['admin', 'security'].includes(req.user.role)) return sendError(res, 'Forbidden', 403);
+    if (!['admin', 'security'].includes(req.user.role)) return sendError(res, 'Forbidden', 403);
     reservation.status = 'checked-out'; reservation.checkedOutAt = new Date();
     await reservation.save();
     const slot = await syncSlotStatus(reservation.slot._id);
     emitSlotUpdate(slot);
     return sendSuccess(res, reservation, 'Checked out successfully');
-  } catch (error) { return sendError(res, error.message, 500); }
+  } catch { return sendError(res, 'Unable to check out reservation', 500); }
 };
