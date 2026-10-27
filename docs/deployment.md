@@ -33,6 +33,7 @@ Copy `.env.example` to `.env`; do not commit it. Replace every placeholder.
 | `VITE_API_URL` | Compiled frontend API URL. Use `/api` for this combined deployment. Use the public API origin plus `/api` when frontend and API are split. |
 | `VITE_SOCKET_URL` | Compiled Socket.IO origin. Leave empty for same-origin Compose hosting; use the public API origin for split hosting. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Optional password-reset email delivery settings. |
+| `TRUST_PROXY` | Reverse proxy trust configuration (`1`, `loopback`, or proxy IP subnet). Defaults to unset/`false` for direct connections to reject spoofed `X-Forwarded-For` headers. |
 | `TZ` | Compose and the image use `Asia/Colombo` for container jobs and logs. |
 
 Vite variables are build-time values. Rebuild the image after changing either `VITE_API_URL` or `VITE_SOCKET_URL`.
@@ -69,9 +70,15 @@ cd client && npm run build
 
 It creates `client/dist`. For Vercel, Netlify, or another static frontend host, build with `VITE_API_URL=https://api.example.edu/api` and `VITE_SOCKET_URL=https://api.example.edu`. Deploy the backend separately with `CLIENT_URL=https://frontend.example.edu`, the same `MONGO_URI`, and a strong `JWT_SECRET`. Configure the frontend host to return `index.html` for React Router routes; the combined Express container already does this.
 
-## CORS and Socket.IO
+## CORS, Socket.IO, and Reverse Proxy
 
 `CLIENT_URL` is the only browser origin accepted in production by both Express CORS and Socket.IO CORS. Do not use `*` with authenticated APIs. For combined same-origin hosting, set it to the public application origin. A reverse proxy must forward WebSocket upgrades for `/socket.io/`.
+
+### Client IP and Reverse Proxy Configuration
+
+When placing the application behind a reverse proxy (e.g. Nginx, Cloudflare, Traefik, AWS ALB), set `TRUST_PROXY=1` (or specify trusted proxy CIDR subnets). This instructs Express to resolve client IPs from the reverse proxy's `X-Forwarded-For` header for audit logging and rate limiting.
+
+In direct connections (including local development and standalone single-container deployments without a proxy), leave `TRUST_PROXY` unset or `false`. When unset, Express uses the direct socket remote address and ignores untrusted `X-Forwarded-For` headers, preventing malicious actors from bypassing rate limits via IP header spoofing.
 
 ## Health check and troubleshooting
 

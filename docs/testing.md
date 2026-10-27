@@ -6,12 +6,21 @@ Backend integration tests use Vitest and Supertest. They run against an explicit
 
 ## Configuration
 
-Set these values before running backend tests:
+Create `server/.env.test` from the safe template `server/.env.test.example`:
+
+```sh
+# Copy safe test template
+cp server/.env.test.example server/.env.test
+```
+
+Configure these values in `server/.env.test` before running backend or E2E tests:
 
 ```sh
 NODE_ENV=test
+PORT=5000
 JWT_SECRET=a-test-only-secret-with-at-least-thirty-two-characters
 MONGO_TEST_URI=mongodb://campus_test_admin:campus_test_password@127.0.0.1:27018/smart-campus-parking-test?authSource=admin&directConnection=true
+CLIENT_URL=http://localhost:5173
 ```
 
 The test suite enforces a strict database guard (`server/test/testDbGuard.js`) that refuses to run unless:
@@ -77,13 +86,20 @@ docker compose -f docker-compose.test.yml stop
 ## Commands
 
 ```sh
+# 1. Backend unit and integration tests
 cd server
 npm test
 npm run test:run
 npm run test:coverage
 
+# 2. Frontend production build
 cd ../client
 npm run build
+
+# 3. Isolated browser Playwright E2E suite
+# Starts backend via e2eHarness strictly against 127.0.0.1:27018 smart-campus-parking-test
+cd ../client
+npm run test:e2e
 ```
 
 Current integration coverage includes authentication/JWT rejection, direct role authorization, vehicle verification field injection and review, area/slot validation, and signed-QR input rejection. Colombo date-helper unit tests run without MongoDB. Feedback, notification, report, reservation lifecycle, security action, concurrency, and password-reset integration cases require `MONGO_TEST_URI`; transaction cases also require a replica set. Skipped tests are not passed tests.

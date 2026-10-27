@@ -17,6 +17,9 @@ uploads/
 .env
 .env.*
 !.env.example
+!server/.env.example
+!.env.test.example
+!server/.env.test.example
 
 # Logs and editor files
 *.log

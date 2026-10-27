@@ -1,9 +1,18 @@
 import express from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { createVehicle, getVehicles, updateVehicle, deleteVehicle, getAdminVehicles, verifyVehicle, rejectVehicle, setVehicleActiveState } from '../controllers/vehicleController.js';
 import { authenticate, authorizeRole } from '../middleware/authMiddleware.js';
 import multer from 'multer';
 
-const storage = multer.diskStorage({ destination: 'uploads/vehicles', filename: (_req, file, cb) => cb(null, `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, '-')}`) });
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+export const vehicleUploadDir = path.resolve(__dirname, '..', 'uploads', 'vehicles');
+
+const storage = multer.diskStorage({
+  destination: vehicleUploadDir,
+  filename: (_req, file, cb) => cb(null, `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, '-')}`)
+});
 const allowedImageTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
 // fileFilter must call cb(error) to reject or cb(null, true) to accept.
 // The previous code incorrectly passed 3 arguments; multer only accepts 2.

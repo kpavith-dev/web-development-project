@@ -24,9 +24,22 @@ import notificationRoutes from './routes/notificationRoutes.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const clientDist = path.join(__dirname, '..', 'client', 'dist');
 
+export const resolveTrustProxy = (value = process.env.TRUST_PROXY) => {
+  if (!value || typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  if (trimmed === 'false' || trimmed === '0' || trimmed === '') return false;
+  if (trimmed === 'true') return true;
+  if (/^\d+$/.test(trimmed)) return parseInt(trimmed, 10);
+  if (trimmed.includes(',')) return trimmed.split(',').map((s) => s.trim()).filter(Boolean);
+  return trimmed;
+};
+
 export const createApp = () => {
   fs.mkdirSync(path.join(__dirname, 'uploads', 'vehicles'), { recursive: true });
   const app = express();
+  // Reverse proxy IP handling: only trust proxy headers if TRUST_PROXY is explicitly configured.
+  // When unset or false, direct client socket IP is used to prevent X-Forwarded-For spoofing.
+  app.set('trust proxy', resolveTrustProxy(process.env.TRUST_PROXY));
   app.use(helmet());
   app.use(cors({ origin: corsOrigin }));
   app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
