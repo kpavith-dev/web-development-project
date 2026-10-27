@@ -7,6 +7,7 @@ export const apiLimiter = rateLimit({
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true, // Return rate limit info in `RateLimit-*` headers
   legacyHeaders: false, // Disable `X-RateLimit-*` headers
+  skip: () => process.env.NODE_ENV === 'test',
 });
 
 // Stricter limiter for auth endpoints
@@ -25,6 +26,7 @@ export const reservationLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
   max: 10, // Limit each IP to 10 requests per minute
   message: 'Too many reservation attempts, please try again later.',
+  skip: () => process.env.NODE_ENV === 'test',
 });
 
 export default apiLimiter;

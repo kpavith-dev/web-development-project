@@ -11,10 +11,68 @@ Set these values before running backend tests:
 ```sh
 NODE_ENV=test
 JWT_SECRET=a-test-only-secret-with-at-least-thirty-two-characters
-MONGO_TEST_URI=mongodb://127.0.0.1:27017/smart-campus-parking-test
+MONGO_TEST_URI=mongodb://campus_test_admin:campus_test_password@127.0.0.1:27018/smart-campus-parking-test?authSource=admin&directConnection=true
 ```
 
-The test suite refuses to run database tests unless `MONGO_TEST_URI` has a database name containing `test` or `testing`. The database is cleared between tests. Use a MongoDB replica set for transaction-dependent reservation concurrency and security check-in/out tests; standalone MongoDB rejects transactions by design.
+The test suite enforces a strict database guard (`server/test/testDbGuard.js`) that refuses to run unless:
+1. `MONGO_TEST_URI` is explicitly configured.
+2. The database name ends with `-test` or `-testing`.
+3. `MONGO_TEST_URI` does not match or collide with `MONGO_URI`.
+4. The live driver connection is verified to match the safe test database name.
+
+### Starting the Isolated Test Database (Docker)
+
+To isolate test data from development and production environments, use the dedicated test Compose configuration:
+
+```sh
+# Start the dedicated test MongoDB replica set
+docker compose -f docker-compose.test.yml up -d
+```
+
+The test container (`campus-parking-test-db`) runs on `127.0.0.1:27018` (avoiding port 27017 used by development instances), uses dedicated named volumes (`mongodb_test_data` for database files and `mongodb_test_config` for cluster internal keyfile storage), and automatically initializes the single-node replica set (`rs0`) required for multi-document transaction tests.
+
+### Verifying Test Database Health and Replica Set Status
+
+```sh
+# 1. Check container health status (wait until status is "(healthy)")
+docker compose -f docker-compose.test.yml ps
+
+# 2. Inspect container logs
+docker compose -f docker-compose.test.yml logs mongodb-test
+
+# 3. Verify authenticated access and that rs0 elected a PRIMARY
+docker compose -f docker-compose.test.yml exec -T mongodb-test mongosh --port 27018 -u campus_test_admin -p campus_test_password --authenticationDatabase admin --quiet --eval "rs.status().members[0].stateStr"
+```
+
+### Running Tests in PowerShell
+
+PowerShell does not automatically inherit environment variables from `.env` or support inline `VAR=value` POSIX syntax. Set the environment variable before invoking npm:
+
+```powershell
+$env:MONGO_TEST_URI = "mongodb://campus_test_admin:campus_test_password@127.0.0.1:27018/smart-campus-parking-test?authSource=admin&directConnection=true"
+cd server
+npm test
+```
+
+### Running Tests in Bash / POSIX Shells
+
+```sh
+MONGO_TEST_URI="mongodb://campus_test_admin:campus_test_password@127.0.0.1:27018/smart-campus-parking-test?authSource=admin&directConnection=true" npm test --prefix server
+```
+
+### Stopping and Cleaning Up the Test Database
+
+```sh
+# Stop the test container while preserving test data and volumes:
+docker compose -f docker-compose.test.yml down
+
+# Or stop without removing the container:
+docker compose -f docker-compose.test.yml stop
+```
+
+> **WARNING:** Deleting volumes destroys test data.
+> Running `docker compose -f docker-compose.test.yml down -v` permanently deletes the dedicated test volumes (`mongodb_test_data` and `mongodb_test_config`), wiping all test database collections, users, and the generated replica set keyfile. Use this only when a complete, clean reset of test state is required.
+
 
 ## Commands
 

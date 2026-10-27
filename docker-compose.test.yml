@@ -1,0 +1,59 @@
+services:
+  mongodb-test:
+    image: mongo:6.0
+    container_name: campus-parking-test-db
+    # Dedicated single-node replica set for isolated integration testing.
+    # Runs on port 27018 to avoid port collisions with development MongoDB on 27017.
+    entrypoint:
+      - bash
+      - -c
+      - |
+        set -eu
+        KEYFILE=/data/configdb/keyfile
+        if [ ! -f "$$KEYFILE" ]; then
+          mkdir -p /data/configdb
+          openssl rand -base64 756 > "$$KEYFILE"
+        fi
+        chmod 400 "$$KEYFILE"
+        chown mongodb:mongodb "$$KEYFILE"
+        exec docker-entrypoint.sh "$$@"
+      - --
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27018", "--keyFile", "/data/configdb/keyfile"]
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_TEST_ROOT_USERNAME:-campus_test_admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_TEST_ROOT_PASSWORD:-campus_test_password}
+    volumes:
+      - mongodb_test_data:/data/db
+      - mongodb_test_config:/data/configdb
+    ports:
+      # Bound strictly to 127.0.0.1 (loopback) to prevent external network exposure.
+      - "127.0.0.1:27018:27018"
+    networks:
+      - campus-parking-test
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - >
+          mongosh --port 27018 --quiet
+          --username "$$MONGO_INITDB_ROOT_USERNAME"
+          --password "$$MONGO_INITDB_ROOT_PASSWORD"
+          --authenticationDatabase admin
+          --eval "
+            try { rs.status() } catch(e) {
+              rs.initiate({ _id:'rs0', members:[{_id:0,host:'127.0.0.1:27018'}] })
+            };
+            rs.status().ok
+          " | grep -q 1
+      interval: 10s
+      timeout: 15s
+      retries: 8
+      start_period: 30s
+
+volumes:
+  mongodb_test_data:
+  mongodb_test_config:
+
+networks:
+  campus-parking-test:
+    driver: bridge
+
