@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FaQrcode, FaSignInAlt, FaSignOutAlt } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import api from '../services/api';
@@ -13,9 +13,9 @@ const SecurityPage = () => {
 
   const loadReservations = async () => {
     try {
-      const { data } = await api.get('/reservations');
       const today = campusDateKey();
-      setReservations((data.data || []).filter((item) => item.bookingDate?.slice(0, 10) === today));
+      const { data } = await api.get('/reservations', { params: { date: today, limit: 100 } });
+      setReservations(data.data || []);
     } catch (error) {
       toast.error(error.response?.data?.message || 'Unable to load today\'s reservations.');
     } finally {

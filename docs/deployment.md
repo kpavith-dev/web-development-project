@@ -57,7 +57,7 @@ The Vite proxy forwards `/api` to the local backend. Socket.IO defaults to `http
 3. Browse the configured public origin (or `http://localhost:5000` before adding a reverse proxy).
 4. Check `http://localhost:5000/api/health`.
 
-Compose waits for MongoDB's authenticated `mongosh` ping healthcheck before it starts the app. The `app_uploads` named volume preserves existing `/uploads` files across app container replacement. MongoDB is intentionally not published to the host.
+Compose waits for MongoDB's authenticated `mongosh` healthcheck (which also initialises the single-node replica set) before it starts the app. MongoDB runs as a replica set (`rs0`) so that multi-document transactions used by reservation and security operations succeed. The `app_uploads` named volume preserves existing `/uploads` files across app container replacement. MongoDB is intentionally not published to the host.
 
 ## Production build and split hosting
 

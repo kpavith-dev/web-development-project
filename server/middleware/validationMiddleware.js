@@ -1,4 +1,5 @@
 import { body, param, query, validationResult } from 'express-validator';
+import { parseCampusDate } from '../utils/campusTime.js';
 
 // Middleware to handle validation errors
 export const handleValidationErrors = (req, res, next) => {
@@ -8,7 +9,7 @@ export const handleValidationErrors = (req, res, next) => {
       success: false,
       message: 'Validation failed',
       errors: errors.array().map(err => ({
-        field: err.param,
+        field: err.path,
         message: err.msg
       }))
     });
@@ -30,7 +31,7 @@ export const validateRegister = [
     .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/).withMessage('Password must contain uppercase, lowercase, and numbers'),
   body('role')
     .optional()
-    .isIn(['student', 'staff']).withMessage('Role must be student or staff'),
+    .isIn(['student', 'staff', 'lecturer']).withMessage('Role must be student, staff, or lecturer'),
 ];
 
 export const validateLogin = [
@@ -41,11 +42,22 @@ export const validateLogin = [
     .notEmpty().withMessage('Password is required'),
 ];
 
+export const validateResetPassword = [
+  body('token')
+    .notEmpty().withMessage('Reset token is required'),
+  body('password')
+    .isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/).withMessage('Password must contain uppercase, lowercase, and numbers'),
+];
+
 // Reservation validation rules
 export const validateReservation = [
   body('slot')
     .notEmpty().withMessage('Slot ID is required')
     .isMongoId().withMessage('Invalid slot ID'),
+  body('vehicle')
+    .notEmpty().withMessage('Vehicle ID is required')
+    .isMongoId().withMessage('Invalid vehicle ID'),
   body('bookingDate')
     .notEmpty().withMessage('Booking date is required')
     .isISO8601().withMessage('Invalid date format'),
@@ -169,4 +181,18 @@ export const validatePagination = [
   query('limit')
     .optional()
     .isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
+];
+
+// Reservation query validation (pagination and optional campus date)
+export const validateReservationQuery = [
+  ...validatePagination,
+  query('date')
+    .optional()
+    .custom((value) => {
+      if (!value || (typeof value === 'string' && value.trim().toLowerCase() === 'today')) return true;
+      if (typeof value !== 'string' || !parseCampusDate(value.trim())) {
+        throw new Error('Invalid date format');
+      }
+      return true;
+    }),
 ];

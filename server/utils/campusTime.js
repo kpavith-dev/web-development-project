@@ -17,7 +17,10 @@ const timeFormatter = new Intl.DateTimeFormat('en-GB', {
 const partsToObject = (parts) => Object.fromEntries(parts.filter((part) => part.type !== 'literal').map((part) => [part.type, part.value]));
 
 export const campusDateKey = (value = new Date()) => {
-  const { year, month, day } = partsToObject(dateFormatter.formatToParts(value));
+  if (!value) return '';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const { year, month, day } = partsToObject(dateFormatter.formatToParts(date));
   return `${year}-${month}-${day}`;
 };
 

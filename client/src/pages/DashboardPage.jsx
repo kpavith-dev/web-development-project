@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 import { FaCar, FaMapMarkedAlt, FaUser, FaClock, FaCheckCircle, FaCalendarAlt } from 'react-icons/fa';
 import api from '../services/api';
@@ -21,13 +21,13 @@ const DashboardPage = () => {
   useEffect(() => {
     const loadDashboard = async () => {
       try {
+        const today = campusDateKey();
         const [dashboardRes, reservationsRes] = await Promise.all([
           api.get('/dashboard'),
-          api.get('/reservations')
+          api.get('/reservations', { params: { date: today, limit: 100 } })
         ]);
         setDashboard(dashboardRes.data.data || null);
-        const today = campusDateKey();
-        setReservations((reservationsRes.data.data || []).filter((item) => item.bookingDate?.slice(0, 10) === today));
+        setReservations(reservationsRes.data.data || []);
       } catch (error) {
         toast.error(error.response?.data?.message || 'Unable to load dashboard data.');
       } finally {

@@ -12,13 +12,24 @@ const RegisterPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (form.password.length < 6 || !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(form.password)) {
+      return toast.error('Password must contain at least 6 characters, including uppercase, lowercase and a number.');
+    }
     setSubmitting(true);
     try {
       const response = await register(form);
       toast.success(response.message || 'Registration successful');
       navigate('/dashboard', { replace: true });
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Unable to create your account.');
+      const backendErrors = error.response?.data?.errors;
+      if (Array.isArray(backendErrors) && backendErrors.length > 0) {
+        backendErrors.forEach((err) => {
+          const msg = typeof err === 'string' ? err : err?.message || err?.msg;
+          if (msg) toast.error(msg);
+        });
+      } else {
+        toast.error(error.response?.data?.message || 'Unable to create your account.');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -34,10 +45,14 @@ const RegisterPage = () => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <input required autoComplete="name" className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3" placeholder="Full Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           <input type="email" required autoComplete="email" className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3" placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-          <input type="password" required minLength="6" autoComplete="new-password" className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3" placeholder="Password (minimum 6 characters)" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+          <div>
+            <input type="password" required minLength="6" autoComplete="new-password" className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3" placeholder="Password (minimum 6 characters)" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+            <p className="mt-1 text-xs text-slate-400">Password must contain at least 6 characters, including uppercase, lowercase and a number.</p>
+          </div>
           <select className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
             <option value="student">Student</option>
             <option value="staff">Staff</option>
+            <option value="lecturer">Lecturer</option>
           </select>
           <button disabled={submitting} className="flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-600 px-4 py-3 font-semibold transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-60">
             <FaUserPlus />

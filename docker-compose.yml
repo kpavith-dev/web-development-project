@@ -2,6 +2,9 @@ services:
   mongodb:
     image: mongo:6.0-alpine
     container_name: campus-parking-db
+    # A single-node replica set is required so the application can use MongoDB
+    # multi-document transactions (used for reservation and security operations).
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:?set MONGO_ROOT_USERNAME in .env}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?set MONGO_ROOT_PASSWORD in .env}
@@ -11,10 +14,25 @@ services:
     networks:
       - campus-parking
     healthcheck:
-      test: ["CMD-SHELL", "mongosh --quiet --username \"$$MONGO_INITDB_ROOT_USERNAME\" --password \"$$MONGO_INITDB_ROOT_PASSWORD\" --authenticationDatabase admin --eval \"db.adminCommand('ping').ok\" | grep 1"]
+      # Wait for the replica set to be initialised before reporting healthy.
+      # rs.initiate() is idempotent so repeated calls are harmless.
+      test:
+        - "CMD-SHELL"
+        - >
+          mongosh --quiet
+          --username "$$MONGO_INITDB_ROOT_USERNAME"
+          --password "$$MONGO_INITDB_ROOT_PASSWORD"
+          --authenticationDatabase admin
+          --eval "
+            try { rs.status() } catch(e) {
+              rs.initiate({ _id:'rs0', members:[{_id:0,host:'127.0.0.1:27017'}] })
+            };
+            rs.status().ok
+          " | grep -q 1
       interval: 10s
-      timeout: 5s
-      retries: 5
+      timeout: 15s
+      retries: 8
+      start_period: 30s
 
   app:
     build:
@@ -27,7 +45,9 @@ services:
     environment:
       PORT: 5000
       NODE_ENV: production
-      MONGO_URI: mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@mongodb:27017/smart-campus-parking?authSource=admin
+      # directConnection=true is required when connecting to a single-node
+      # replica set via the container hostname rather than the replica-set SRV.
+      MONGO_URI: mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@mongodb:27017/smart-campus-parking?authSource=admin&directConnection=true
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
       CLIENT_URL: ${CLIENT_URL:?set CLIENT_URL in .env}
       TZ: Asia/Colombo

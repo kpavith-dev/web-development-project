@@ -5,7 +5,19 @@ import multer from 'multer';
 
 const storage = multer.diskStorage({ destination: 'uploads/vehicles', filename: (_req, file, cb) => cb(null, `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, '-')}`) });
 const allowedImageTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
-const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 }, fileFilter: (_req, file, cb) => cb(null, allowedImageTypes.has(file.mimetype) ? null : new Error('Only JPEG, PNG, and WebP images are allowed'), allowedImageTypes.has(file.mimetype)) });
+// fileFilter must call cb(error) to reject or cb(null, true) to accept.
+// The previous code incorrectly passed 3 arguments; multer only accepts 2.
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (allowedImageTypes.has(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only JPEG, PNG, and WebP images are allowed'));
+    }
+  }
+});
 
 const router = express.Router();
 

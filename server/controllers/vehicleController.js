@@ -11,6 +11,8 @@ const isValidText = (value, maximumLength) => value === undefined || value === '
 const vehicleFields = ['vehicleNumber', 'vehicleType', 'vehicleBrand', 'model', 'color', 'registrationNumber', 'isPrimary'];
 const hasUnsupportedFields = (body) => Object.keys(body).some((field) => !vehicleFields.includes(field));
 const identityFields = ['vehicleNumber', 'vehicleType', 'vehicleBrand', 'model', 'color', 'registrationNumber'];
+const allowedVehicleTypes = Vehicle.schema.path('vehicleType').enumValues;
+const allowedVerificationStatuses = Vehicle.schema.path('verificationStatus').enumValues;
 
 export const createVehicle = async (req, res) => {
   try {
@@ -104,12 +106,40 @@ export const deleteVehicle = async (req, res) => {
   }
 };
 
-export const getAdminVehicles = async (_req, res) => {
+export const getAdminVehicles = async (req, res) => {
   try {
-    const vehicles = await Vehicle.find().populate('user', 'name email').populate('verifiedBy', 'name email').sort({ createdAt: -1 });
-    return sendSuccess(res, vehicles, 'Vehicles fetched');
+    const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 20, 1), 100);
+    const filter = {};
+    if (req.query.status !== undefined) {
+      if (typeof req.query.status !== 'string' || !allowedVerificationStatuses.includes(req.query.status)) {
+        return sendError(res, 'Invalid status filter', 400);
+      }
+      filter.verificationStatus = req.query.status;
+    }
+    if (req.query.type !== undefined) {
+      if (typeof req.query.type !== 'string' || !allowedVehicleTypes.includes(req.query.type)) {
+        return sendError(res, 'Invalid vehicle type filter', 400);
+      }
+      filter.vehicleType = req.query.type;
+    }
+    if (req.query.search?.trim()) {
+      const escaped = req.query.search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      filter.$or = [
+        { vehicleNumber: new RegExp(escaped, 'i') },
+        { vehicleBrand: new RegExp(escaped, 'i') },
+        { model: new RegExp(escaped, 'i') },
+        { registrationNumber: new RegExp(escaped, 'i') }
+      ];
+    }
+    const [vehicles, total] = await Promise.all([
+      Vehicle.find(filter).populate('user', 'name email').populate('verifiedBy', 'name email').sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit),
+      Vehicle.countDocuments(filter)
+    ]);
+    return sendSuccess(res, vehicles, 'Vehicles fetched', 200, { page, limit, total, totalPages: Math.ceil(total / limit) });
   } catch { return sendError(res, 'Unable to fetch vehicles', 500); }
 };
+
 
 export const verifyVehicle = async (req, res) => {
   try {

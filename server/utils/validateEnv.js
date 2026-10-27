@@ -1,7 +1,6 @@
 import { logger } from './logger.js';
 
 const requiredEnvVars = [
-  'PORT',
   'MONGO_URI',
   'JWT_SECRET',
   'NODE_ENV'

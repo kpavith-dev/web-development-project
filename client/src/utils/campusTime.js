@@ -6,6 +6,9 @@ const formatter = new Intl.DateTimeFormat('en-CA', {
 });
 
 export const campusDateKey = (value = new Date()) => {
-  const parts = Object.fromEntries(formatter.formatToParts(value).filter((part) => part.type !== 'literal').map((part) => [part.type, part.value]));
+  if (!value) return '';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const parts = Object.fromEntries(formatter.formatToParts(date).filter((part) => part.type !== 'literal').map((part) => [part.type, part.value]));
   return `${parts.year}-${parts.month}-${parts.day}`;
 };

@@ -52,7 +52,8 @@ export const logout = async (req, res) => {
 export const forgotPassword = async (req, res) => {
   try {
     const email = req.body.email?.trim().toLowerCase();
-    // Always return the same response so this endpoint cannot reveal account existence.
+    // Always return the same response regardless of outcome so this endpoint
+    // cannot be used to enumerate whether a particular email is registered.
     const successMessage = 'If an account exists for that email, a reset link has been sent.';
     if (!email) return sendSuccess(res, null, successMessage);
     const user = await User.findOne({ email, isActive: true });
@@ -62,18 +63,23 @@ export const forgotPassword = async (req, res) => {
     user.resetPasswordToken = crypto.createHash('sha256').update(token).digest('hex');
     user.resetPasswordExpires = new Date(Date.now() + 60 * 60 * 1000);
     await user.save();
-    const delivered = await sendPasswordResetEmail({ email: user.email, token });
-    if (!delivered) return sendError(res, 'Password reset email is not configured. Contact an administrator.', 503);
+    // Attempt delivery but always return the same generic success to avoid leaking
+    // account existence through SMTP-unavailability errors.
+    await sendPasswordResetEmail({ email: user.email, token });
     return sendSuccess(res, null, successMessage);
   } catch (error) {
-    return sendError(res, 'Unable to send password reset email', 500);
+    return sendSuccess(res, null, 'If an account exists for that email, a reset link has been sent.');
   }
 };
+
 
 export const resetPassword = async (req, res) => {
   try {
     const { token, password } = req.body;
-    if (!token || !password || password.length < 6) return sendError(res, 'A valid reset token and a password of at least 6 characters are required', 400);
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/;
+    if (!token || !password || password.length < 6 || !passwordRegex.test(password)) {
+      return sendError(res, 'A valid reset token and a password of at least 6 characters including uppercase, lowercase, and numbers are required', 400);
+    }
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
     const user = await User.findOne({ resetPasswordToken: tokenHash, resetPasswordExpires: { $gt: new Date() } });
     if (!user) return sendError(res, 'This password reset link is invalid or has expired', 400);

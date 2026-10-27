@@ -29,7 +29,8 @@ const validateBooking = async ({ slotId, vehicleId, bookingDate, arrivalTime, de
   const bounds = campusDateBounds(bookingDate);
   if (!slotId || !bounds || !validTimeRange(arrivalTime, departureTime)) return { error: 'Provide a slot, a valid booking date, and an arrival time before departure time' };
   if (!mongoose.isValidObjectId(slotId)) return { error: 'Selected parking slot ID is invalid' };
-  if (vehicleId && !mongoose.isValidObjectId(vehicleId)) return { error: 'Selected vehicle ID is invalid' };
+  if (!vehicleId) return { error: 'Vehicle ID is required' };
+  if (!mongoose.isValidObjectId(vehicleId)) return { error: 'Selected vehicle ID is invalid' };
   if (bounds.date < campusDateBounds(new Date()).date) return { error: 'Reservations cannot be made in the past' };
   if (bounds.date.getTime() === campusDateBounds(new Date()).date.getTime() && campusDateTime(bounds.date, arrivalTime) <= new Date()) {
     return { error: 'Arrival time must be in the future for today\'s reservation' };
@@ -43,13 +44,11 @@ const validateBooking = async ({ slotId, vehicleId, bookingDate, arrivalTime, de
   if (!slot.parkingArea.isActive) return { error: 'Parking area is inactive' };
   if (!isWithinOperatingHours(slot.parkingArea, arrivalTime, departureTime)) return { error: 'Parking area is closed at the selected time' };
 
-  if (vehicleId) {
-    const vehicle = await Vehicle.findOne({ _id: vehicleId, user: userId }).session(session || null);
-    if (!vehicle) return { error: 'Selected vehicle was not found for your account' };
-    if (!vehicle.isActive) return { error: 'Selected vehicle is inactive' };
-    if (vehicle.verificationStatus !== 'verified') return { error: 'Selected vehicle is not verified' };
-    if (vehicle.vehicleType !== slot.vehicleTypeAllowed) return { error: `This slot is available for ${slot.vehicleTypeAllowed} vehicles only` };
-  }
+  const vehicle = await Vehicle.findOne({ _id: vehicleId, user: userId }).session(session || null);
+  if (!vehicle) return { error: 'Selected vehicle was not found for your account' };
+  if (!vehicle.isActive) return { error: 'Selected vehicle is inactive' };
+  if (vehicle.verificationStatus !== 'verified') return { error: 'Selected vehicle is not verified' };
+  if (vehicle.vehicleType !== slot.vehicleTypeAllowed) return { error: `This slot is available for ${slot.vehicleTypeAllowed} vehicles only` };
 
   const overlapBase = {
     slot: slotId,
@@ -93,6 +92,24 @@ const lockSlot = async (slotId, session) => ParkingSlot.findByIdAndUpdate(
   { new: true, session, timestamps: false }
 );
 
+export const signParkingPass = ({ reservationId, userId, slotId, vehicleId }) => jwt.sign(
+  {
+    reservationId,
+    userId: (userId?._id || userId).toString(),
+    slotId: (slotId?._id || slotId).toString(),
+    vehicleId: (vehicleId?._id || vehicleId).toString(),
+    type: 'parking-pass'
+  },
+  process.env.JWT_SECRET,
+  { expiresIn: '30d', algorithm: 'HS256' }
+);
+
+export const generateParkingPassQr = async (params) => {
+  const qrData = signParkingPass(params);
+  const qrCode = await QRCode.toDataURL(qrData);
+  return { qrData, qrCode };
+};
+
 export const createReservation = async (req, res) => {
   try {
     if (!mongoose.connection.readyState || mongoose.connection.readyState !== 1) {
@@ -100,10 +117,11 @@ export const createReservation = async (req, res) => {
     }
 
     const { slot: slotId, vehicle: vehicleId, bookingDate, arrivalTime, departureTime } = req.body;
-    if (!mongoose.isValidObjectId(slotId)) return sendError(res, 'Selected parking slot ID is invalid', 400);
+    if (!slotId || !mongoose.isValidObjectId(slotId)) return sendError(res, 'Selected parking slot ID is invalid', 400);
+    if (!vehicleId) return sendError(res, 'Vehicle ID is required', 400);
+    if (!mongoose.isValidObjectId(vehicleId)) return sendError(res, 'Selected vehicle ID is invalid', 400);
     const reservationId = `RES-${crypto.randomUUID()}`;
-    const qrData = jwt.sign({ reservationId, userId: req.user._id.toString(), slotId: slotId.toString(), ...(vehicleId ? { vehicleId: vehicleId.toString() } : {}), type: 'parking-pass' }, process.env.JWT_SECRET, { expiresIn: '30d', algorithm: 'HS256' });
-    const qrCode = await QRCode.toDataURL(qrData);
+    const { qrCode } = await generateParkingPassQr({ reservationId, userId: req.user._id, slotId, vehicleId });
     const result = await withReservationTransaction(async (session) => {
       const lockedSlot = await lockSlot(slotId, session);
       if (!lockedSlot) return { error: 'Selected parking slot was not found', status: 404 };
@@ -111,7 +129,7 @@ export const createReservation = async (req, res) => {
       if (validation.error) return validation;
       const reservation = new Reservation({
         slot: slotId,
-        vehicle: vehicleId || undefined,
+        vehicle: vehicleId,
         bookingDate: validation.bounds.date,
         arrivalTime,
         departureTime,
@@ -144,8 +162,21 @@ export const getReservations = async (req, res) => {
     }
 
     const filter = ['admin', 'security'].includes(req.user.role) ? {} : { user: req.user._id };
+
+    if (req.query.date) {
+      const dateStr = typeof req.query.date === 'string' ? req.query.date.trim() : '';
+      const bounds = dateStr.toLowerCase() === 'today'
+        ? campusDateBounds(new Date())
+        : campusDateBounds(dateStr);
+      if (!bounds) {
+        return sendError(res, 'Invalid date format. Expected YYYY-MM-DD or today.', 400);
+      }
+      filter.bookingDate = { $gte: bounds.date, $lt: bounds.nextDate };
+    }
+
+    const hasDate = Boolean(req.query.date);
     const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
-    const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 10, 1), 100);
+    const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || (hasDate ? 100 : 10), 1), 100);
     const [reservations, total] = await Promise.all([
       Reservation.find(filter).sort({ bookingDate: -1, arrivalTime: -1 }).skip((page - 1) * limit).limit(limit).populate('user', 'name email role').populate({ path: 'slot', populate: { path: 'parkingArea', select: 'name' } }).populate('vehicle', 'vehicleNumber vehicleType'),
       Reservation.countDocuments(filter)
@@ -159,16 +190,19 @@ export const getReservations = async (req, res) => {
 export const updateReservation = async (req, res) => {
   try {
     if (req.body.slot !== undefined && !mongoose.isValidObjectId(req.body.slot)) return sendError(res, 'Selected parking slot ID is invalid', 400);
-    if (req.body.vehicle && !mongoose.isValidObjectId(req.body.vehicle)) return sendError(res, 'Selected vehicle ID is invalid', 400);
+    if (req.body.vehicle !== undefined && (!req.body.vehicle || !mongoose.isValidObjectId(req.body.vehicle))) return sendError(res, 'Selected vehicle ID is invalid', 400);
     const result = await withReservationTransaction(async (session) => {
       const reservation = await Reservation.findById(req.params.id).session(session);
       if (!reservation) return { error: 'Reservation not found', status: 404 };
       if (reservation.user.toString() !== req.user._id.toString() && !['admin', 'security'].includes(req.user.role)) return { error: 'Forbidden', status: 403 };
       if (!['pending', 'confirmed'].includes(reservation.status)) return { error: 'Only pending or confirmed reservations can be edited', status: 400 };
 
+      const oldSlotId = (reservation.slot?._id || reservation.slot).toString();
+      const oldVehicleId = (reservation.vehicle?._id || reservation.vehicle)?.toString();
+
       const next = {
-        slotId: req.body.slot ?? reservation.slot.toString(),
-        vehicleId: req.body.vehicle ?? reservation.vehicle?.toString(),
+        slotId: req.body.slot ?? oldSlotId,
+        vehicleId: req.body.vehicle ?? oldVehicleId,
         bookingDate: req.body.bookingDate ?? reservation.bookingDate,
         arrivalTime: req.body.arrivalTime ?? reservation.arrivalTime,
         departureTime: req.body.departureTime ?? reservation.departureTime
@@ -178,9 +212,21 @@ export const updateReservation = async (req, res) => {
       const validation = await validateBooking({ ...next, userId: reservation.user, excludeId: reservation._id, session });
       if (validation.error) return validation;
 
-      const oldSlotId = reservation.slot.toString();
+      const slotChanged = oldSlotId !== next.slotId.toString();
+      const vehicleChanged = oldVehicleId !== next.vehicleId.toString();
+
+      if (slotChanged || vehicleChanged) {
+        const { qrCode } = await generateParkingPassQr({
+          reservationId: reservation.reservationId,
+          userId: reservation.user,
+          slotId: next.slotId,
+          vehicleId: next.vehicleId
+        });
+        reservation.qrCode = qrCode;
+      }
+
       reservation.slot = next.slotId;
-      reservation.vehicle = next.vehicleId || undefined;
+      reservation.vehicle = next.vehicleId;
       reservation.bookingDate = validation.bounds.date;
       reservation.arrivalTime = next.arrivalTime;
       reservation.departureTime = next.departureTime;

@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "nodemon server.js",
     "start": "node server.js",
+    "start:e2e": "node e2eHarness.js",
     "test": "vitest run",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage"

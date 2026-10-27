@@ -1,4 +1,5 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { FaCalendarPlus, FaEdit, FaQrcode, FaStar, FaTimes } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { io } from 'socket.io-client';
@@ -96,6 +97,10 @@ const ReservationsPage = () => {
 
   const reserve = async (event) => {
     event.preventDefault();
+    if (!form.vehicle) {
+      toast.error('Select a vehicle first.');
+      return;
+    }
     if (!form.slot) {
       toast.error('Select an available slot first.');
       return;
@@ -180,11 +185,15 @@ const ReservationsPage = () => {
               </div>
               <div>
                 <label className="mb-2 block text-sm text-slate-400">Vehicle</label>
-                <select value={form.vehicle} onChange={(event) => setForm({ ...form, vehicle: event.target.value, slot: '' })} className="input">
-                  <option value="">{vehicles.length ? 'No vehicle selected' : 'No verified active vehicle available'}</option>
+                <select value={form.vehicle} onChange={(event) => setForm({ ...form, vehicle: event.target.value, slot: '' })} className="input" required>
+                  <option value="">{vehicles.length ? 'Select a vehicle' : 'No verified active vehicle available'}</option>
                   {vehicles.map((vehicle) => <option key={vehicle._id} value={vehicle._id}>{vehicle.vehicleNumber} · {vehicle.vehicleType}</option>)}
                 </select>
-                {!vehicles.length && <p className="mt-1 text-xs text-amber-300">Add a vehicle and wait for admin verification before booking.</p>}
+                {!vehicles.length && (
+                  <p className="mt-1 text-xs text-amber-300">
+                    No eligible vehicle found. Please visit your <Link to="/profile" className="font-semibold underline hover:text-amber-200">Profile</Link> to add a vehicle and complete verification.
+                  </p>
+                )}
               </div>
               <div>
                 <label className="mb-2 block text-sm text-slate-400">Available slot</label>
@@ -245,7 +254,7 @@ const ReservationsPage = () => {
                   </div>
                   <div className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2">
                     <span className="text-slate-400">Date</span>
-                    <span>{new Date(reservation.bookingDate).toLocaleDateString()}</span>
+                    <span>{campusDateKey(reservation.bookingDate)}</span>
                   </div>
                   <div className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2"><span className="text-slate-400">Vehicle</span><span>{reservation.vehicle?.vehicleNumber || 'No vehicle'}</span></div>
                   <div className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2">

@@ -9,7 +9,7 @@ const reservationSchema = new mongoose.Schema({
   departureTime: { type: String, required: true },
   status: { type: String, enum: ['pending', 'confirmed', 'cancelled', 'expired', 'no-show', 'checked-in', 'checked-out'], default: 'pending' },
   qrCode: { type: String },
-  vehicle: { type: mongoose.Schema.Types.ObjectId, ref: 'Vehicle' },
+  vehicle: { type: mongoose.Schema.Types.ObjectId, ref: 'Vehicle', required: true },
   checkedInAt: { type: Date },
   checkedOutAt: { type: Date },
   reminderSentAt: { type: Date },

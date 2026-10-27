@@ -21,4 +21,11 @@ describe('Asia/Colombo campus time', () => {
     expect(campusDateTime('2026-04-01', '22:00').toISOString()).toBe('2026-04-01T16:30:00.000Z');
     expect(campusDateTime('2026-04-01', '24:00')).toBeNull();
   });
+
+  test('formats stored UTC midnight booking dates as campus calendar day without timezone day shifts', () => {
+    const storedDate = new Date('2026-10-20T00:00:00.000Z');
+    expect(campusDateKey(storedDate)).toBe('2026-10-20');
+    expect(campusDateKey('2026-10-20T00:00:00.000Z')).toBe('2026-10-20');
+    expect(campusDateKey('2026-10-20')).toBe('2026-10-20');
+  });
 });
