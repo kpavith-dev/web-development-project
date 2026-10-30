@@ -1,114 +1,120 @@
-﻿import { NavLink } from 'react-router-dom';
-import { useEffect, useState } from 'react';
-import { FaHome, FaCar, FaMapMarkedAlt, FaParking, FaShieldAlt, FaChartBar, FaUser, FaUsers, FaBars, FaBell, FaSignOutAlt } from 'react-icons/fa';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import { Sidebar, Navbar } from '../components/layout';
 
-const navItems = [
-  { label: 'Dashboard', path: '/dashboard', icon: FaHome },
-  { label: 'Reservations', path: '/reservations', icon: FaCar },
-  { label: 'Areas', path: '/areas', icon: FaMapMarkedAlt },
-  { label: 'Slots', path: '/slots', icon: FaParking },
-  { label: 'Security', path: '/security', icon: FaShieldAlt },
-  { label: 'Reports', path: '/reports', icon: FaChartBar },
-  { label: 'Users', path: '/users', icon: FaUsers },
-  { label: 'Vehicles', path: '/vehicles', icon: FaCar },
-  { label: 'Profile', path: '/profile', icon: FaUser }
-];
-
-const roleNavMap = {
-  student: ['/dashboard', '/reservations', '/profile'],
-  lecturer: ['/dashboard', '/reservations', '/profile'],
-  staff: ['/dashboard', '/reservations', '/profile'],
-  security: ['/dashboard', '/security', '/profile'],
-  admin: ['/dashboard', '/reservations', '/areas', '/slots', '/security', '/reports', '/users', '/vehicles', '/profile']
-};
-
+/**
+ * MainLayout - Premium 3D Dark SaaS Layout
+ *
+ * Implements a modern dark glass dashboard shell with responsive sidebar,
+ * top navigation bar, real-time notifications dropdown, and fluid content container.
+ */
 const MainLayout = ({ children }) => {
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
-  const visibleItems = navItems.filter((item) => (roleNavMap[user?.role] || roleNavMap.student).includes(item.path));
 
   useEffect(() => {
-    api.get('/notifications').then(({ data }) => setNotifications(data.data || [])).catch(() => {});
+    let isMounted = true;
+    api
+      .get('/notifications')
+      .then(({ data }) => {
+        if (isMounted) {
+          setNotifications(data.data || []);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const markAllRead = async () => {
-    try { await api.patch('/notifications/read-all'); setNotifications((current) => current.map((notification) => ({ ...notification, isRead: true }))); } catch { /* Keep the current state if syncing fails. */ }
+    try {
+      await api.patch('/notifications/read-all');
+      setNotifications((current) =>
+        current.map((notification) => ({ ...notification, isRead: true }))
+      );
+    } catch {
+      /* Keep the current state if syncing fails. */
+    }
   };
+
   const markRead = async (notification) => {
     if (notification.isRead) return;
-    try { const { data } = await api.patch(`/notifications/${notification._id}/read`); setNotifications((current) => current.map((item) => item._id === notification._id ? data.data : item)); } catch { /* The dropdown remains usable if a notification was removed. */ }
+    try {
+      const { data } = await api.patch(`/notifications/${notification._id}/read`);
+      setNotifications((current) =>
+        current.map((item) => (item._id === notification._id ? data.data : item))
+      );
+    } catch {
+      /* The dropdown remains usable if a notification was removed. */
+    }
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      {open && <button aria-label="Close menu" onClick={() => setOpen(false)} className="fixed inset-0 z-30 bg-slate-950/70 lg:hidden" />}
+    <div className="relative min-h-screen bg-canvas text-text-main overflow-x-hidden">
+      {/* Background ambient lighting accents */}
+      <div className="pointer-events-none fixed inset-0 z-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(59,130,246,0.12),rgba(255,255,255,0))]" />
+      <div className="pointer-events-none fixed inset-0 z-0 bg-[radial-gradient(ellipse_60%_60%_at_100%_100%,rgba(34,211,238,0.06),rgba(255,255,255,0))]" />
 
-      <aside className={`fixed inset-y-0 left-0 z-40 w-72 border-r border-slate-800 bg-slate-900/95 p-6 backdrop-blur transition-transform lg:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="mb-8">
-          <h1 className="text-2xl font-semibold">Smart Campus</h1>
-          <p className="text-sm text-slate-400">Parking reservation control</p>
-        </div>
+      {/* Accessible Mobile Off-Canvas Backdrop */}
+      {open && (
+        <button
+          type="button"
+          aria-label="Close menu"
+          onClick={() => setOpen(false)}
+          className="fixed inset-0 z-30 bg-[#04070E]/80 backdrop-blur-sm transition-opacity duration-300 lg:hidden cursor-default"
+        />
+      )}
 
-        <div className="mb-6 rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-          <p className="text-sm text-slate-400">Signed in as</p>
-          <p className="mt-1 font-semibold text-white">{user?.name || 'Campus user'}</p>
-          <p className="text-sm capitalize text-cyan-300">{user?.role || 'student'}</p>
-        </div>
+      {/* Premium 3D Dark Glass Sidebar */}
+      <Sidebar
+        user={user}
+        mobileOpen={open}
+        setMobileOpen={setOpen}
+        isCollapsed={isCollapsed}
+        setIsCollapsed={setIsCollapsed}
+      />
 
-        <nav className="space-y-2">
-          {visibleItems.map(({ label, path, icon: Icon }) => (
-            <NavLink
-              key={path}
-              to={path}
-              onClick={() => setOpen(false)}
-              className={({ isActive }) =>
-                `flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition ${isActive ? 'bg-cyan-600 text-white' : 'text-slate-300 hover:bg-slate-800'}`
-              }
-            >
-              <Icon />
-              {label}
-            </NavLink>
-          ))}
-        </nav>
-      </aside>
+      {/* Main Content Area */}
+      <div
+        className={`relative z-10 flex min-h-screen flex-col p-4 sm:p-6 lg:p-8 transition-all duration-300 ease-3d ${
+          isCollapsed ? 'lg:ml-20' : 'lg:ml-72'
+        }`}
+      >
+        {/* Modern Top Navigation Bar */}
+        <Navbar
+          user={user}
+          logout={logout}
+          onOpenMobileMenu={() => setOpen(true)}
+          notifications={notifications}
+          showNotifications={showNotifications}
+          setShowNotifications={setShowNotifications}
+          markAllRead={markAllRead}
+          markRead={markRead}
+        />
 
-      <div className="p-4 lg:ml-72 lg:p-6">
-        <header className="mb-6 flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-900/70 px-6 py-4">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setOpen(true)} className="rounded-lg border border-slate-700 p-2 lg:hidden"><FaBars /></button>
-            <div>
-              <h2 className="text-xl font-semibold">Campus Parking Control Center</h2>
-              <p className="text-sm text-slate-400">Manage reservations, slots, and analytics in one place.</p>
-            </div>
+        {/* Dynamic Page Content */}
+        <main className="flex-1 min-w-0">{children}</main>
+
+        {/* Premium SaaS System Footer */}
+        <footer className="mt-8 flex flex-col items-center justify-between gap-3 border-t border-white/[0.06] pt-4 pb-2 text-xs text-slate-500 sm:flex-row">
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]" />
+            <span className="font-medium text-slate-400">Smart Campus Parking System</span>
+            <span>•</span>
+            <span className="text-slate-500">v0.1.0-phase1</span>
           </div>
-
-          <div className="flex items-center gap-3">
-            <div className="rounded-full bg-cyan-600/20 px-4 py-2 text-sm capitalize text-cyan-300">{user?.name || 'User'}</div>
-            <div className="relative">
-              <button aria-label="Notifications" onClick={() => setShowNotifications((current) => !current)} className="relative rounded-full border border-slate-700 p-2 text-slate-300 transition hover:border-cyan-500 hover:text-cyan-300">
-                <FaBell />
-                {notifications.some((notification) => !notification.isRead) && <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-rose-500" />}
-              </button>
-              {showNotifications && (
-                <div className="absolute right-0 top-12 z-50 w-80 rounded-xl border border-slate-700 bg-slate-900 p-3 shadow-2xl">
-                  <div className="mb-2 flex items-center justify-between"><p className="font-semibold">Notifications ({notifications.filter((notification) => !notification.isRead).length} unread)</p><button onClick={markAllRead} disabled={!notifications.some((notification) => !notification.isRead)} className="text-xs text-cyan-300 disabled:opacity-40">Mark all read</button></div>
-                  <div className="max-h-72 space-y-2 overflow-auto">
-                    {notifications.length ? notifications.map((notification) => <button key={notification._id} onClick={() => markRead(notification)} className={`w-full rounded-lg p-2 text-left text-sm ${notification.isRead ? 'bg-slate-800/50 text-slate-400' : 'bg-cyan-500/10 text-slate-200'}`}><p className="font-medium">{notification.title}</p><p>{notification.message}</p>{!notification.isRead && <span className="text-xs text-cyan-300">Mark as read</span>}</button>) : <p className="py-4 text-sm text-slate-400">No notifications.</p>}
-                  </div>
-                </div>
-              )}
-            </div>
-            <button onClick={logout} className="flex items-center gap-2 rounded-full border border-slate-700 px-3 py-2 text-sm text-slate-300 transition hover:border-rose-500 hover:text-rose-300">
-              <FaSignOutAlt /> Sign out
-            </button>
+          <div className="flex items-center gap-3 text-slate-500">
+            <span>Secure Cloud Enclave</span>
+            <span>•</span>
+            <span className="text-cyan-400/80">3D SaaS Architecture</span>
           </div>
-        </header>
-
-        {children}
+        </footer>
       </div>
     </div>
   );
