@@ -1,10 +1,23 @@
 import { useEffect, useState } from 'react';
-import { FaCar, FaCheck, FaChevronLeft, FaChevronRight, FaPowerOff, FaTimes } from 'react-icons/fa';
+import { FaCar, FaCheck, FaChevronLeft, FaChevronRight, FaPowerOff, FaTimes, FaSearch } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import api from '../services/api';
+import { Card3D, Input, Select, Badge, Button } from '../components';
 
-const vehicleTypes = ['car', 'motorcycle', 'bicycle', 'ev'];
-const verificationStatuses = ['pending', 'verified', 'rejected'];
+const verificationStatusOptions = [
+  { value: '', label: 'All verification statuses' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'verified', label: 'Verified' },
+  { value: 'rejected', label: 'Rejected' },
+];
+
+const vehicleTypeOptions = [
+  { value: '', label: 'All vehicle types' },
+  { value: 'car', label: 'Car' },
+  { value: 'motorcycle', label: 'Motorcycle' },
+  { value: 'bicycle', label: 'Bicycle' },
+  { value: 'ev', label: 'EV' },
+];
 
 const VehiclesPage = () => {
   const [vehicles, setVehicles] = useState([]);
@@ -73,182 +86,241 @@ const VehiclesPage = () => {
     }
   };
 
-  const badge = (vehicle) =>
-    !vehicle.isActive
-      ? 'bg-rose-500/15 text-rose-300'
-      : vehicle.verificationStatus === 'verified'
-      ? 'bg-emerald-500/15 text-emerald-300'
-      : vehicle.verificationStatus === 'rejected'
-      ? 'bg-rose-500/15 text-rose-300'
-      : 'bg-amber-500/15 text-amber-300';
+  const badgeStyles = (vehicle) => {
+    if (!vehicle.isActive) {
+      return 'bg-rose-950/70 text-rose-300 border-rose-500/40 shadow-[0_0_12px_-2px_rgba(244,63,94,0.3),inset_0_1px_0_rgba(255,255,255,0.15)]';
+    }
+    switch (vehicle.verificationStatus) {
+      case 'verified':
+        return 'bg-emerald-950/70 text-emerald-300 border-emerald-500/40 shadow-[0_0_12px_-2px_rgba(16,185,129,0.3),inset_0_1px_0_rgba(255,255,255,0.15)]';
+      case 'rejected':
+        return 'bg-rose-950/70 text-rose-300 border-rose-500/40 shadow-[0_0_12px_-2px_rgba(244,63,94,0.3),inset_0_1px_0_rgba(255,255,255,0.15)]';
+      case 'pending':
+      default:
+        return 'bg-amber-950/70 text-amber-300 border-amber-500/40 shadow-[0_0_12px_-2px_rgba(245,158,11,0.3),inset_0_1px_0_rgba(255,255,255,0.15)]';
+    }
+  };
+
+  const badgeDotStyles = (vehicle) => {
+    if (!vehicle.isActive) {
+      return 'bg-rose-400 shadow-[0_0_6px_rgba(251,113,133,0.8)]';
+    }
+    switch (vehicle.verificationStatus) {
+      case 'verified':
+        return 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]';
+      case 'rejected':
+        return 'bg-rose-400 shadow-[0_0_6px_rgba(251,113,133,0.8)]';
+      case 'pending':
+      default:
+        return 'bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.8)]';
+    }
+  };
 
   return (
     <div className="space-y-6">
-      <section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-        <div className="flex items-center gap-3">
-          <span className="rounded-xl bg-cyan-500/15 p-3 text-cyan-300">
-            <FaCar />
-          </span>
-          <div>
-            <h1 className="text-xl font-semibold">Vehicle verification</h1>
-            <p className="text-sm text-slate-400">Review submitted vehicle identities and control reservation eligibility.</p>
+      {/* Premium 3D Page Header & Filter Section */}
+      <Card3D elevation="md">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4">
+            {/* 3D Glowing Vehicle Emblem */}
+            <div className="relative flex h-12 w-12 sm:h-14 sm:w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500 via-primary-600 to-cyan-500 p-0.5 shadow-glow-cyan-sm">
+              <div className="flex h-full w-full items-center justify-center rounded-[14px] bg-[#0A1020]/80 backdrop-blur-sm">
+                <FaCar className="h-5 w-5 sm:h-6 sm:w-6 text-cyan-300 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]" />
+              </div>
+            </div>
+            <div>
+              <div className="flex items-center gap-2.5">
+                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
+                  Vehicle verification
+                </h1>
+                <span className="hidden sm:inline-block h-2 w-2 rounded-full bg-cyan-400 shadow-[0_0_8px_#22D3EE]" />
+              </div>
+              <p className="mt-1 text-xs sm:text-sm font-medium text-slate-400">
+                Review submitted vehicle identities and control reservation eligibility.
+              </p>
+            </div>
           </div>
         </div>
-        <div className="mt-5 grid gap-3 md:grid-cols-3">
-          <input
-            className="input"
+
+        {/* Search and Filters */}
+        <div className="mt-6 grid gap-3 md:grid-cols-3">
+          <Input
             placeholder="Search vehicle number or model"
             value={filters.search}
             onChange={(event) => setFilters({ ...filters, search: event.target.value, page: 1 })}
+            leftIcon={<FaSearch className="text-text-muted text-sm" />}
+            aria-label="Search vehicle number or model"
           />
-          <select
-            className="input"
+          <Select
             value={filters.status}
             onChange={(event) => setFilters({ ...filters, status: event.target.value, page: 1 })}
-          >
-            <option value="">All verification statuses</option>
-            {verificationStatuses.map((status) => (
-              <option key={status} value={status} className="capitalize">
-                {status[0].toUpperCase() + status.slice(1)}
-              </option>
-            ))}
-          </select>
-          <select
-            className="input"
+            options={verificationStatusOptions}
+            aria-label="Filter by verification status"
+          />
+          <Select
             value={filters.type}
             onChange={(event) => setFilters({ ...filters, type: event.target.value, page: 1 })}
-          >
-            <option value="">All vehicle types</option>
-            {vehicleTypes.map((type) => (
-              <option key={type} value={type} className="capitalize">
-                {type === 'ev' ? 'EV' : type[0].toUpperCase() + type.slice(1)}
-              </option>
-            ))}
-          </select>
+            options={vehicleTypeOptions}
+            aria-label="Filter by vehicle type"
+          />
         </div>
-      </section>
+      </Card3D>
 
-      <section className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/70">
-        <div className="overflow-x-auto">
+      {/* Main Table Content Container */}
+      <Card3D
+        elevation="md"
+        footer={
+          pagination && pagination.total !== undefined ? (
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between text-sm text-slate-400 w-full">
+              <span className="font-medium text-slate-400">
+                <span className="font-semibold text-white">{pagination.total}</span> vehicles
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  aria-label="Previous page"
+                  disabled={pagination.page <= 1}
+                  onClick={() => setFilters({ ...filters, page: filters.page - 1 })}
+                  leftIcon={<FaChevronLeft className="h-3 w-3" />}
+                  className="h-8 w-8 !p-0 border-white/10"
+                />
+                <span className="px-2 text-xs sm:text-sm font-medium text-slate-400">
+                  Page <span className="font-semibold text-white">{pagination.page}</span> of{' '}
+                  <span className="font-semibold text-white">{pagination.totalPages || 1}</span>
+                </span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  aria-label="Next page"
+                  disabled={pagination.page >= pagination.totalPages}
+                  onClick={() => setFilters({ ...filters, page: filters.page + 1 })}
+                  leftIcon={<FaChevronRight className="h-3 w-3" />}
+                  className="h-8 w-8 !p-0 border-white/10"
+                />
+              </div>
+            </div>
+          ) : null
+        }
+      >
+        <div className="-m-6 overflow-x-auto">
           <table className="w-full min-w-[1050px] text-left text-sm">
-            <thead className="border-b border-slate-800 bg-slate-950/50 text-slate-400">
+            <thead className="border-b border-white/10 bg-secondary/80 text-xs font-semibold uppercase tracking-wider text-slate-400">
               <tr>
-                <th className="p-4">Vehicle / owner</th>
-                <th className="p-4">Details</th>
-                <th className="p-4">Verification</th>
-                <th className="p-4">Submitted</th>
-                <th className="p-4">Actions</th>
+                <th className="px-6 py-4">Vehicle / owner</th>
+                <th className="px-6 py-4">Details</th>
+                <th className="px-6 py-4">Verification</th>
+                <th className="px-6 py-4">Submitted</th>
+                <th className="px-6 py-4">Actions</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-white/5">
               {loading ? (
                 <tr>
-                  <td colSpan="5" className="p-8 text-center text-slate-400">
-                    Loading vehicles…
+                  <td colSpan="5" className="p-12 text-center text-slate-400">
+                    <div className="flex flex-col items-center justify-center gap-3">
+                      <div className="h-7 w-7 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent shadow-[0_0_12px_rgba(34,211,238,0.5)]" />
+                      <span className="text-sm font-medium text-slate-300">Loading vehicles…</span>
+                    </div>
                   </td>
                 </tr>
               ) : vehicles.length ? (
                 vehicles.map((vehicle) => (
-                  <tr key={vehicle._id} className="border-b border-slate-800 align-top last:border-0">
-                    <td className="p-4">
-                      <p className="font-semibold">{vehicle.vehicleNumber}</p>
-                      <p className="text-slate-400">{vehicle.user?.name || 'Owner unavailable'}</p>
-                      <p className="text-slate-500">{vehicle.user?.email || ''}</p>
+                  <tr key={vehicle._id} className="border-b border-white/5 align-top transition-colors hover:bg-white/[0.03] last:border-0">
+                    <td className="px-6 py-4">
+                      <p className="font-bold tracking-tight text-white text-base">{vehicle.vehicleNumber}</p>
+                      <p className="text-sm font-medium text-slate-300 mt-0.5">{vehicle.user?.name || 'Owner unavailable'}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{vehicle.user?.email || ''}</p>
                     </td>
-                    <td className="p-4 text-slate-300">
-                      <p className="capitalize">
-                        {vehicle.vehicleType} · {vehicle.vehicleBrand || 'No brand'} {vehicle.model || ''}
-                      </p>
-                      <p className="text-slate-400">
-                        Registration: {vehicle.registrationNumber || '—'} · {vehicle.color || '—'}
+                    <td className="px-6 py-4 text-slate-300">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="cyan" size="sm" className="font-semibold uppercase tracking-wider">
+                          {vehicle.vehicleType === 'ev' ? 'EV' : vehicle.vehicleType}
+                        </Badge>
+                        <span className="font-medium text-white capitalize">
+                          {vehicle.vehicleBrand || 'No brand'} {vehicle.model || ''}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-1.5">
+                        Registration: <span className="font-mono text-slate-300">{vehicle.registrationNumber || '—'}</span> · Color: <span className="capitalize text-slate-300">{vehicle.color || '—'}</span>
                       </p>
                     </td>
-                    <td className="p-4">
-                      <span className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${badge(vehicle)}`}>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold capitalize backdrop-blur-md ${badgeStyles(vehicle)}`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${badgeDotStyles(vehicle)}`} aria-hidden="true" />
                         {!vehicle.isActive ? 'inactive' : vehicle.verificationStatus}
                       </span>
                       {vehicle.rejectionReason && (
-                        <p className="mt-2 max-w-xs text-xs text-rose-200">{vehicle.rejectionReason}</p>
+                        <p className="mt-2 max-w-xs text-xs text-rose-300 font-medium">{vehicle.rejectionReason}</p>
                       )}
                       {vehicle.verifiedAt && (
-                        <p className="mt-2 text-xs text-slate-500">
+                        <p className="mt-1 text-xs text-slate-400">
                           Reviewed {new Date(vehicle.verifiedAt).toLocaleDateString()}
                         </p>
                       )}
                     </td>
-                    <td className="p-4 text-slate-400">{new Date(vehicle.createdAt).toLocaleDateString()}</td>
-                    <td className="p-4">
-                      <div className="flex gap-2">
+                    <td className="px-6 py-4 text-slate-400 text-xs">
+                      {new Date(vehicle.createdAt).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-wrap items-center gap-2">
                         {vehicle.verificationStatus !== 'verified' && (
-                          <button
+                          <Button
+                            variant="primary"
+                            size="xs"
+                            leftIcon={<FaCheck className="h-3 w-3" />}
                             onClick={() => approve(vehicle._id)}
-                            className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold"
+                            className="!bg-emerald-600 hover:!bg-emerald-500 !border-emerald-400/40 text-white shadow-3d-sm font-semibold"
                           >
-                            <FaCheck className="inline" /> Approve
-                          </button>
+                            Approve
+                          </Button>
                         )}
-                        <button
+                        <Button
+                          variant="outline"
+                          size="xs"
+                          leftIcon={<FaTimes className="h-3 w-3" />}
                           onClick={() => {
                             setRejecting(vehicle._id);
                             setReason(vehicle.rejectionReason || '');
                           }}
-                          className="rounded-lg border border-rose-500/60 px-3 py-2 text-xs text-rose-200"
+                          className="!border-rose-500/40 !text-rose-300 hover:!bg-rose-500/10 hover:!border-rose-400 font-medium"
                         >
-                          <FaTimes className="inline" /> Reject
-                        </button>
-                        <button
+                          Reject
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="xs"
+                          leftIcon={<FaPowerOff className="h-3 w-3" />}
                           onClick={() => toggleActive(vehicle)}
-                          className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-200"
+                          className="border-white/10 text-slate-300 hover:text-white hover:border-white/20 font-medium"
                         >
-                          <FaPowerOff className="inline" /> {vehicle.isActive ? 'Deactivate' : 'Activate'}
-                        </button>
+                          {vehicle.isActive ? 'Deactivate' : 'Activate'}
+                        </Button>
                       </div>
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan="5" className="p-8 text-center text-slate-400">
-                    No vehicles match these filters.
+                  <td colSpan="5" className="p-12 text-center text-slate-400">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <FaCar className="h-8 w-8 text-slate-600 mb-1" />
+                      <span className="text-sm font-medium text-slate-400">No vehicles match these filters.</span>
+                    </div>
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
+      </Card3D>
 
-        {pagination && pagination.total !== undefined && (
-          <div className="flex items-center justify-between border-t border-slate-800 p-4 text-sm text-slate-400">
-            <span>{pagination.total} vehicles</span>
-            <div className="flex gap-2">
-              <button
-                aria-label="Previous page"
-                disabled={pagination.page <= 1}
-                onClick={() => setFilters({ ...filters, page: filters.page - 1 })}
-                className="rounded border border-slate-700 p-2 disabled:opacity-40"
-              >
-                <FaChevronLeft />
-              </button>
-              <span className="px-2 py-2">
-                Page {pagination.page} of {pagination.totalPages || 1}
-              </span>
-              <button
-                aria-label="Next page"
-                disabled={pagination.page >= pagination.totalPages}
-                onClick={() => setFilters({ ...filters, page: filters.page + 1 })}
-                className="rounded border border-slate-700 p-2 disabled:opacity-40"
-              >
-                <FaChevronRight />
-              </button>
-            </div>
-          </div>
-        )}
-      </section>
-
+      {/* Rejection Modal */}
       {rejecting && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4">
-          <section className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6">
-            <h2 className="text-lg font-semibold">Reject vehicle</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-canvas/80 backdrop-blur-md p-4">
+          <section className="w-full max-w-md rounded-2xl border border-white/10 bg-gradient-to-b from-[#142238] to-[#101A2E] p-6 shadow-2xl text-text-main relative">
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-400 to-transparent opacity-80" />
+            <h2 className="text-lg font-semibold tracking-tight text-white">Reject vehicle</h2>
             <p className="mt-1 text-sm text-slate-400">Give the owner a clear reason so they can correct and resubmit it.</p>
             <textarea
               value={reason}
@@ -258,12 +330,22 @@ const VehiclesPage = () => {
               placeholder="Rejection reason"
             />
             <div className="mt-4 flex justify-end gap-3">
-              <button onClick={() => setRejecting(null)} className="rounded-xl border border-slate-700 px-4 py-2">
+              <Button
+                variant="ghost"
+                size="md"
+                onClick={() => setRejecting(null)}
+                className="border border-white/10 text-slate-300 hover:bg-white/5"
+              >
                 Cancel
-              </button>
-              <button onClick={reject} className="rounded-xl bg-rose-600 px-4 py-2 font-semibold">
+              </Button>
+              <Button
+                variant="danger"
+                size="md"
+                onClick={reject}
+                className="font-semibold shadow-3d-sm"
+              >
                 Reject vehicle
-              </button>
+              </Button>
             </div>
           </section>
         </div>
